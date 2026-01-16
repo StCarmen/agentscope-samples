@@ -41,6 +41,7 @@ class AliasAgentBase(ReActAgent):
             "static_control",
             "both",
         ] = "both",
+        plan_notebook: Optional[Any] = None,
     ):
         super().__init__(
             name=name,
@@ -52,6 +53,7 @@ class AliasAgentBase(ReActAgent):
             max_iters=max_iters,
             long_term_memory=long_term_memory,
             long_term_memory_mode=long_term_memory_mode,
+            plan_notebook=plan_notebook,
         )
 
         self.session_service = session_service
