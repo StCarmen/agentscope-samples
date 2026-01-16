@@ -4,8 +4,7 @@ from .todoWrite import todo_write
 from .utils import (
     model_call_with_retry,
     set_run_ipython_cell,
-    get_prompt_from_file,
-    install_package,
+    get_prompt_from_file
 )
 from .ds_toolkit import add_ds_specific_tool
 from .prompt_selector import LLMPromptSelector
@@ -19,7 +18,6 @@ __all__ = [
     "model_call_with_retry",
     "get_prompt_from_file",
     "set_run_ipython_cell",
-    "install_package",
     "add_ds_specific_tool",
     "LLMPromptSelector",
     "files_filter_pre_reply_hook",
