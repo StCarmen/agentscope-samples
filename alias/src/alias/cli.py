@@ -277,6 +277,7 @@ def main():
     run_parser.add_argument(
         "--datasource",
         "-ds",
+        nargs="+",
         help=(
             "Data sources for the agent to use. Multiple formats supported:\n"
             "  • Local files: ./data.txt, /absolute/path/file.json\n"
