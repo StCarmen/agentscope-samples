@@ -13,6 +13,7 @@ from agentscope.message import Msg, TextBlock, ToolUseBlock, ToolResultBlock
 from agentscope.model import ChatModelBase
 from agentscope.tool import ToolResponse
 from agentscope.tracing import trace_reply
+from agentscope.plan import PlanNotebook
 from loguru import logger
 from pydantic import BaseModel, ValidationError, Field
 from tenacity import retry, stop_after_attempt, wait_fixed
@@ -26,7 +27,6 @@ from alias.agent.agents.common_agent_utils import (
 from .ds_agent_utils import (
     ReportGenerator,
     LLMPromptSelector,
-    todo_write,
     get_prompt_from_file,
     files_filter_pre_reply_hook,
     add_ds_specific_tool,
@@ -67,13 +67,12 @@ class DataScienceAgent(AliasAgentBase):
             max_iters=max_iters,
             session_service=session_service,
             state_saving_dir=state_saving_dir,
+            plan_notebook=PlanNotebook(),
         )
 
         set_run_ipython_cell(self.toolkit.sandbox)
 
         self.uploaded_files: List[str] = []
-
-        self.todo_list: List[Dict[str, Any]] = []
 
         self.infer_trajectories: List[List[Msg]] = []
 
@@ -82,14 +81,6 @@ class DataScienceAgent(AliasAgentBase):
             "detailed_report.html",
         )
         self.tmp_file_storage_dir = tmp_file_storage_dir
-
-        self.todo_list_prompt = get_prompt_from_file(
-            os.path.join(
-                PROMPT_DS_BASE_PATH,
-                "_agent_todo_reminder_prompt.md",
-            ),
-            False,
-        )
 
         self._sys_prompt = get_prompt_from_file(
             os.path.join(
@@ -140,17 +131,6 @@ class DataScienceAgent(AliasAgentBase):
         )
         self._selected_scenario_prompts: str = ""
 
-        self.toolkit.register_tool_function(
-            partial(todo_write, agent=self),
-            func_description=get_prompt_from_file(
-                os.path.join(
-                    PROMPT_DS_BASE_PATH,
-                    "_tool_todo_list_prompt.yaml",
-                ),
-                False,
-            ),
-        )
-
         self.toolkit.register_tool_function(self.think)
 
         self.register_instance_hook(
@@ -174,13 +154,8 @@ class DataScienceAgent(AliasAgentBase):
     def sys_prompt(self) -> str:
         base_prompt = self._sys_prompt
 
-        todo_prompt = self.todo_list_prompt.replace(
-            "{todoList}",
-            json.dumps(self.todo_list, indent=2, ensure_ascii=False),
-        )
-
         return (
-            f"{base_prompt}{self._selected_scenario_prompts}\n\n{todo_prompt}"
+            f"{base_prompt}{self._selected_scenario_prompts}"
         )
 
     @trace_reply
@@ -516,20 +491,6 @@ class DataScienceAgent(AliasAgentBase):
         self._selected_scenario_prompts = "\n\n".join(scenario_contents)
         return self._selected_scenario_prompts
 
-    def _print_todo_list(self):
-        content = (
-            f" The todoList is :\n"
-            f"\n{json.dumps(self.todo_list, indent=4, ensure_ascii=False)}"
-            "\n" + "==" * 10 + "\n"
-        )
-        logger.log("SEND_PLAN", content)
-        with open(
-            self.session_service.log_storage_path,
-            "a",
-            encoding="utf-8",
-        ) as file:
-            # Append the content
-            file.write(content)
 
     def think(self, response: str):
         """
