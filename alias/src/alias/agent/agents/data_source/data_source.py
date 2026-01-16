@@ -2,14 +2,13 @@ import os
 import json
 
 from loguru import logger
-from functools import partial
 from typing import Dict, Any, Optional, List
 
 from agentscope.mcp import StdIOStatefulClient
 from alias.agent.agents.data_source.data_skill import DataSkillManager
 from alias.agent.agents.data_source._typing import SOURCE_TYPE_TO_ACCESS_TYPE, SourceAccessType, SourceType
 from alias.agent.agents.data_source.utils import replace_placeholders
-from alias.agent.tools.toolkit_hooks.long_text_post_hook import LongTextPostHook
+from alias.agent.tools.toolkit_hooks.text_post_hook import TextPostHook
 from alias.agent.tools.alias_toolkit import AliasToolkit
 
 from alias.agent.tools.sandbox_util import (
@@ -103,10 +102,10 @@ class DataSource:
             server_config = server_config[mcp_server_name]
             client = StdIOStatefulClient(self.name, command=server_config["command"], args=server_config["args"], env=server_config["env"])
             
-            long_text_hook = LongTextPostHook(toolkit.sandbox)
+            text_hook = TextPostHook(toolkit.sandbox, budget=5000, auto_save=True)
             await toolkit.add_and_connect_mcp_client(
                 client,
-                postprocess_func=long_text_hook.truncate_and_save_response
+                postprocess_func=text_hook.truncate_and_save_response
             )
             registered_tools = [t.name for t in list(await toolkit.additional_mcp_clients[-1].list_tools())]
 
