@@ -6,7 +6,6 @@ from .utils import (
     get_prompt_from_file,
 )
 from .ds_toolkit import add_ds_specific_tool
-from .prompt_selector import LLMPromptSelector
 from .agent_hook import (
     files_filter_pre_reply_hook,
 )

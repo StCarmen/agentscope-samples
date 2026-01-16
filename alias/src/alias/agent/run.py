@@ -31,6 +31,8 @@ from alias.agent.utils.constants import (
     DEEPRESEARCH_AGENT_DESCRIPTION,
     DS_AGENT_DESCRIPTION,
 )
+from alias.agent.utils.prepare_data_source import add_user_data_message, build_data_manager
+
 from alias.agent.tools.add_tools import add_tools
 from alias.agent.agents.ds_agent_utils import (
     add_ds_specific_tool,
@@ -104,7 +106,7 @@ async def arun_meta_planner(
     # Init deep research toolkit
     deep_research_toolkit = init_dr_toolkit(worker_full_toolkit)
 
-    # Init BI agent toolkit
+    # Init data science agent toolkit
     ds_toolkit = init_ds_toolkit(worker_full_toolkit)
 
     try:
@@ -175,7 +177,7 @@ async def arun_meta_planner(
             description=DEEPRESEARCH_AGENT_DESCRIPTION,
             worker_type="built-in",
         )
-        # === add BI agent ===
+        # === add data science agent ===
         ds_agent = DataScienceAgent(
             name="Data_Science_Agent",
             model=model,
@@ -337,7 +339,10 @@ async def arun_datascience_agent(
     ]
     share_tools(global_toolkit, worker_toolkit, test_tool_list)
     add_ds_specific_tool(worker_toolkit)
-
+    
+    data_manager = await build_data_manager(session_service, worker_toolkit)
+    await add_user_data_message(session_service, data_manager)
+        
     try:
         worker_agent = DataScienceAgent(
             name="Data_Science_Agent",
@@ -345,6 +350,8 @@ async def arun_datascience_agent(
             formatter=formatter,
             memory=InMemoryMemory(),
             toolkit=worker_toolkit,
+            data_manager=data_manager,
+            sys_prompt=data_manager.get_data_skills(),
             max_iters=30,
             session_service=session_service,
         )
@@ -360,6 +367,7 @@ async def arun_datascience_agent(
     finally:
         try:
             await global_toolkit.close_mcp_clients()
+            await worker_toolkit.close_mcp_clients()
         except (RuntimeError, asyncio.CancelledError) as e:
             # Event loop might be closed during shutdown
             if "Event loop is closed" in str(e) or isinstance(

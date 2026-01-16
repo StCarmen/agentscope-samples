@@ -12,6 +12,8 @@ PROMPT_DS_BASE_PATH = os.getenv(
     _DEFAULT_PROMPT_PATH,
 )
 
+TASK_SKILL_DIR_BASE = "src/alias/agent/agents/ds_agent_utils/built_in_skill"
+
 VL_MODEL_NAME = os.getenv("VISION_MODEL", "qwen-vl-max")
 MODEL_CONFIG_NAME = os.getenv("MODEL", "qwen3-max")
 

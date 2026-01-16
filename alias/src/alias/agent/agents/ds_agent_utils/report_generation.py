@@ -124,7 +124,7 @@ class ReportGenerator:
         ):
             # During brief response mode,
             # directly return the brief response to the user.
-            return markdown_content["brief_response"], ""
+            return markdown_content["brief_response"], "", ""
         else:
             # In detailed report mode,
             # convert the detailed report to HTML and return it to the user;
@@ -132,4 +132,4 @@ class ReportGenerator:
             # it can be obtained through markdown_content["brief_response"].
             return markdown_content[
                 "brief_response"
-            ], await self._convert_to_html(markdown_content["report_content"])
+            ], markdown_content["report_content"], await self._convert_to_html(markdown_content["report_content"])
