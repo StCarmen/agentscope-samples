@@ -130,6 +130,10 @@ class ReportGenerator:
             # convert the detailed report to HTML and return it to the user;
             # if a brief summary of the report is needed,
             # it can be obtained through markdown_content["brief_response"].
-            return markdown_content[
-                "brief_response"
-            ], markdown_content["report_content"], await self._convert_to_html(markdown_content["report_content"])
+            return (
+                markdown_content["brief_response"],
+                markdown_content["report_content"],
+                await self._convert_to_html(
+                    markdown_content["report_content"],
+                ),
+            )
