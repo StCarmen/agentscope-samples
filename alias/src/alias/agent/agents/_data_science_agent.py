@@ -85,6 +85,8 @@ class DataScienceAgent(AliasAgentBase):
             "detailed_report.html",
         )
 
+        self.tmp_file_storage_dir = tmp_file_storage_dir
+
         self._sys_prompt = (
             get_prompt_from_file(
                 os.path.join(
