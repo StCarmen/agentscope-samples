@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import logging
 
 from typing import List
@@ -17,11 +18,14 @@ def replace_placeholders(obj, source_config):
             var_name = match.group(1)
             if var_name in source_config:
                 result = result.replace(
-                    match.group(0), str(source_config[var_name])
+                    match.group(0),
+                    str(source_config[var_name]),
                 )
         return result
     elif isinstance(obj, dict):
-        return {k: replace_placeholders(v, source_config) for k, v in obj.items()}
+        return {
+            k: replace_placeholders(v, source_config) for k, v in obj.items()
+        }
     elif isinstance(obj, list):
         return [replace_placeholders(item, source_config) for item in obj]
     else:

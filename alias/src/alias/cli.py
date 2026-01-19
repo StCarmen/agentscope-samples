@@ -28,7 +28,9 @@ from alias.agent.run import (
     arun_datascience_agent,
     arun_finance_agent,
 )
-from alias.agent.utils.prepare_data_source import get_data_source_config_from_file
+from alias.agent.utils.prepare_data_source import (
+    get_data_source_config_from_file,
+)
 
 from alias.runtime.alias_sandbox.alias_sandbox import AliasSandbox
 
@@ -120,7 +122,6 @@ async def run_agent_task(
     )
     logger.info(f"Sandbox desktop URL: {sandbox.desktop_url}")
     webbrowser.open(sandbox.desktop_url)
-
 
     # Create initial user message (regardless of whether files were uploaded)
     initial_user_message = UserMessage(
@@ -285,13 +286,11 @@ def main():
             "Example: --data file.txt postgresql://localhost/db"
         ),
     )
-    
+
     run_parser.add_argument(
         "--dataconfig",
         "-dc",
-        help=(
-            "Path to the data source configuration file"
-        ),
+        help=("Path to the data source configuration file"),
     )
 
     run_parser.add_argument(
@@ -319,15 +318,23 @@ def main():
     if args.command == "run":
         try:
             user_data = None
-            data_endpoint = args.datasource if hasattr(args, "datasource") else None
+            data_endpoint = (
+                args.datasource if hasattr(args, "datasource") else None
+            )
             if data_endpoint:
                 # List of endpoints to data sources
-                user_data = data_endpoint if isinstance(data_endpoint, list) else [data_endpoint]
+                user_data = (
+                    data_endpoint
+                    if isinstance(data_endpoint, list)
+                    else [data_endpoint]
+                )
             else:
                 # Configuration file
                 if hasattr(args, "dataconfig") and args.dataconfig:
-                    user_data = get_data_source_config_from_file(args.dataconfig)
-                    
+                    user_data = get_data_source_config_from_file(
+                        args.dataconfig,
+                    )
+
             asyncio.run(
                 run_agent_task(
                     user_msg=args.task,

@@ -20,10 +20,16 @@ from alias.agent.agents import (
     init_dr_toolkit,
 )
 
-if os.getenv("DSA_VERSION") == 'PY_FILE':
-    from alias.agent.agents._data_science_agent_v2 import DataScienceAgent, init_ds_toolkit
+if os.getenv("DSA_VERSION") == "PY_FILE":
+    from alias.agent.agents._data_science_agent_v2 import (
+        DataScienceAgent,
+        init_ds_toolkit,
+    )
 else:
-    from alias.agent.agents._data_science_agent import DataScienceAgent, init_ds_toolkit
+    from alias.agent.agents._data_science_agent import (
+        DataScienceAgent,
+        init_ds_toolkit,
+    )
 
 
 from alias.agent.agents.meta_planner_utils._worker_manager import share_tools
@@ -36,7 +42,10 @@ from alias.agent.utils.constants import (
     DEEPRESEARCH_AGENT_DESCRIPTION,
     DS_AGENT_DESCRIPTION,
 )
-from alias.agent.utils.prepare_data_source import add_user_data_message, build_data_manager
+from alias.agent.utils.prepare_data_source import (
+    add_user_data_message,
+    build_data_manager,
+)
 
 from alias.agent.tools.add_tools import add_tools
 from alias.agent.memory.longterm_memory import AliasLongTermMemory
@@ -47,7 +56,7 @@ MODEL_FORMATTER_MAPPING = {
     "qwen3-max": [
         DashScopeChatModel(
             api_key=os.environ.get("DASHSCOPE_API_KEY"),
-            model_name="qwen3-max-preview",
+            model_name="qwen3-max-2025-09-23",
             stream=True,
         ),
         DashScopeChatFormatter(),
@@ -336,7 +345,7 @@ async def arun_datascience_agent(
     worker_toolkit = init_ds_toolkit(global_toolkit)
     data_manager = await build_data_manager(session_service, worker_toolkit)
     await add_user_data_message(session_service, data_manager)
-        
+
     try:
         worker_agent = DataScienceAgent(
             name="Data_Science_Agent",

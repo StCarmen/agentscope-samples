@@ -10,21 +10,23 @@ from agentscope.tool._types import AgentSkill
 
 from alias.agent.agents.ds_agent_utils.utils import get_prompt_from_file
 
+
 class DataSkill(AgentSkill):
     """The source type of the skill."""
+
     type: List[SourceType]
-    
-    
+
+
 class DataSkillManager:
     """Data Skill Selector Based on Data Source Type"""
-    
+
     _default_skill_path_base = "src/alias/agent/agents/_built_in_skill/data"
-    
+
     def __init__(
-        self
+        self,
     ):
         self.skills = self.register_skill_dir()
-        
+
         self.source_type_2_skills = {}
         for skill in self.skills:
             for t in skill["type"]:
@@ -44,13 +46,13 @@ class DataSkillManager:
             return []
 
         selected_skills = []
-        
+
         data_source_types = set(data_source_types)
         for source_type in data_source_types:
             try:
                 # Get skill from source type mapping
                 skill = self.source_type_2_skills.get(source_type, None)
-                
+
                 # Skip if no corresponding skill
                 if not skill:
                     logger.warning(
@@ -63,23 +65,26 @@ class DataSkillManager:
                         f"for data source type: {source_type}",
                     )
 
-                skill_content = get_prompt_from_file(skill["dir"], return_json=False)
+                skill_content = get_prompt_from_file(
+                    skill["dir"],
+                    return_json=False,
+                )
                 if skill_content:
                     selected_skills.append(skill_content)
-                
+
             except Exception as e:
                 logger.error(
                     f"DataSkillSelector selection failed: {str(e)} "
                     f"for data source type: {source_type}",
                 )
                 continue
-        
+
         return selected_skills
-    
+
     def register_skill_dir(self, dir=_default_skill_path_base):
         """Load skills from all directories containing SKILL.md"""
-        
-        skills = [] 
+
+        skills = []
         # Check the skill directory
         if not os.path.isdir(dir):
             raise ValueError(
@@ -95,13 +100,13 @@ class DataSkillManager:
                 skill = self.register_skill(dir_path)
                 if skill:
                     skills.append(skill)
-        
+
         return skills
 
     def register_skill(self, path: str, name=None):
         """
         Register a new skill dynamically
-        
+
         Args:
             name: Skill name
             path: Path to skill directory containing SKILL.md
@@ -111,24 +116,28 @@ class DataSkillManager:
             file_path = self._resolve_skill_path(path)
             if not file_path:
                 raise FileNotFoundError("`SKILL.md` not found")
-            
+
             # Parse the skill file
             skill = self._parse_skill_file(file_path, name)
-            logger.info(f"Successfully registered skill \'{skill['name']}\' from '{file_path}'")
-            
+            logger.info(
+                f"Successfully registered skill '{skill['name']}' from '{file_path}'",
+            )
+
             return skill
-            
+
         except Exception as e:
-            logger.error(f"Failed to register skill \'{skill['name']}\' from '{path}': {e}")
+            logger.error(
+                f"Failed to register skill '{skill['name']}' from '{path}': {e}",
+            )
             return None
-        
+
     def _resolve_skill_path(self, path: str) -> str:
         """
         Resolve a skill path to the actual markdown file path
-        
+
         Args:
             path: Path to skill markdown file or directory containing SKILL.md
-            
+
         Returns:
             str: Path to the actual markdown file, or empty string if invalid
         """
@@ -154,7 +163,7 @@ class DataSkillManager:
             name = post.get("name", dir_name)
         else:
             name = post.get("name", name)
-            
+
         description = post.get("description", None)
         _type = post.get("type", None)
 
@@ -163,22 +172,19 @@ class DataSkillManager:
                 f"The file '{file_path}' must have a YAML Front "
                 "Matter including `name`, `description`, and `type` fields",
             )
-        
+
         _type = _type if isinstance(_type, list) else [_type]
         if any([not SourceType.is_valid_source_type(t) for t in _type]):
             raise ValueError(
                 f"Type of file '{file_path}' must be a member (or a list of members) of SourceType",
             )
-            
+
         name, description = str(name), str(description)
         _type = [SourceType(t) for t in _type]
-        
+
         return DataSkill(
             name=name,
             description=description,
             type=_type,
             dir=file_path,
         )
-
-
-

@@ -25,7 +25,10 @@ from alias.agent.agents.common_agent_utils import (
     get_user_input_to_mem_pre_reply_hook,
 )
 from alias.agent.agents.data_source.data_source import DataSourceManager
-from alias.agent.tools.sandbox_util import copy_local_file_to_workspace, create_workspace_directory
+from alias.agent.tools.sandbox_util import (
+    copy_local_file_to_workspace,
+    create_workspace_directory,
+)
 
 from .ds_agent_utils import (
     ReportGenerator,
@@ -82,17 +85,21 @@ class DataScienceAgent(AliasAgentBase):
             "detailed_report.html",
         )
 
-        self._sys_prompt = get_prompt_from_file(
-            os.path.join(
-                PROMPT_DS_BASE_PATH,
-                "_agent_system_workflow_prompt.md",
-            ),
-            False,
-        ) + "\n\n" + sys_prompt
+        self._sys_prompt = (
+            get_prompt_from_file(
+                os.path.join(
+                    PROMPT_DS_BASE_PATH,
+                    "_agent_system_workflow_prompt.md",
+                ),
+                False,
+            )
+            + "\n\n"
+            + sys_prompt
+        )
 
         self.register_task_skill_dir()
         self.prepare_task_skill_data()
-        
+
         self.toolkit.register_tool_function(self.think)
 
         self.register_instance_hook(
@@ -119,7 +126,7 @@ class DataScienceAgent(AliasAgentBase):
             return self._sys_prompt + "\n\n" + task_skill_prompt
         else:
             return self._sys_prompt
-        
+
     @trace_reply
     async def reply(
         self,
@@ -363,13 +370,17 @@ class DataScienceAgent(AliasAgentBase):
             memory_log=memory_log,
         )
 
-        response, report_md, report_html = await report_generator.generate_report()
+        (
+            response,
+            report_md,
+            report_html,
+        ) = await report_generator.generate_report()
         md_report_path = os.path.join(
-            self. tmp_file_storage_dir,
+            self.tmp_file_storage_dir,
             "detailed_report.md",
         )
         html_report_path = os.path.join(
-            self. tmp_file_storage_dir,
+            self.tmp_file_storage_dir,
             "detailed_report.html",
         )
 
@@ -472,7 +483,6 @@ class DataScienceAgent(AliasAgentBase):
         self._selected_scenario_prompts = "\n\n".join(scenario_contents)
         return self._selected_scenario_prompts
 
-
     def think(self, response: str):
         """
         Invoke this function whenever you need to
@@ -516,20 +526,20 @@ class DataScienceAgent(AliasAgentBase):
         for root, dirs, _ in os.walk(skill_dir):
             for dir_name in dirs:
                 dir_path = os.path.join(root, dir_name)
-                
+
                 # Register the agent skill
                 self.toolkit.register_agent_skill(
-                    os.path.join(dir_path)
+                    os.path.join(dir_path),
                 )
-                
+
     def prepare_task_skill_data(self):
         target_path_base = f"/workspace/skills/"
-        
+
         for _, skill in self.toolkit.skills.items():
             # Get the base directory name
-            dir_name = skill["dir"].split('/')[-1]
+            dir_name = skill["dir"].split("/")[-1]
             target_base_path = os.path.join(target_path_base, dir_name)
-            
+
             # Create target directory in workspace
             create_workspace_directory(self.toolkit.sandbox, target_base_path)
             # Walk through all files in the source directory
@@ -539,26 +549,34 @@ class DataScienceAgent(AliasAgentBase):
                     rel_path = os.path.relpath(root, skill["dir"])
                     if rel_path == ".":
                         rel_path = ""
-                    
+
                     # Construct source and target paths
                     source_file_path = os.path.join(root, file_name)
                     target_dir_path = os.path.join(target_base_path, rel_path)
                     target_file_path = os.path.join(target_dir_path, file_name)
-                    
+
                     # Create target subdirectory
-                    create_workspace_directory(self.toolkit.sandbox, target_dir_path)
-                    logger.info(f"Uploading file {source_file_path} to {target_file_path}")
+                    create_workspace_directory(
+                        self.toolkit.sandbox,
+                        target_dir_path,
+                    )
+                    logger.info(
+                        f"Uploading file {source_file_path} to {target_file_path}",
+                    )
                     result = copy_local_file_to_workspace(
                         sandbox=self.toolkit.sandbox,
                         local_path=source_file_path,
                         target_path=target_file_path,
                     )
                     if result.get("isError"):
-                        raise ValueError(f"Failed to upload {source_file_path}: {result}")
-            
+                        raise ValueError(
+                            f"Failed to upload {source_file_path}: {result}",
+                        )
+
             # Update skill dir to point to new location
             skill["dir"] = target_base_path
-            
+
+
 def init_ds_toolkit(full_toolkit: AliasToolkit) -> AliasToolkit:
     ds_toolkit = AliasToolkit(full_toolkit.sandbox, add_all=False)
     ds_tool_list = [

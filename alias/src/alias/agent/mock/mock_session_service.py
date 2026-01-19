@@ -227,57 +227,63 @@ class MockSessionService:
     ) -> Optional[MockMessage]:
         """
         Append content to the most recent message.
-        
+
         Args:
             content_to_append: Content to append to the message
             role_filter: Optional role filter (e.g., 'user', 'assistant')
-            
+
         Returns:
             Updated MockMessage or None if no message found
         """
         if not self.messages:
             logger.warning("No messages to append to")
             return None
-        
+
         # Find the most recent message (optionally filtered by role)
         target_message = None
         for msg in reversed(self.messages):
-            if role_filter is None or msg.message.get('role') == role_filter:
+            if role_filter is None or msg.message.get("role") == role_filter:
                 target_message = msg
                 break
-        
+
         if target_message is None:
             logger.warning(f"No message found with role={role_filter}")
             return None
-        
+
         # Append content
-        current_content = target_message.message.get('content', '')
+        current_content = target_message.message.get("content", "")
         if isinstance(current_content, str):
-            target_message.message['content'] = current_content + content_to_append
+            target_message.message["content"] = (
+                current_content + content_to_append
+            )
         elif isinstance(current_content, list):
             # Handle multi-modal content (list of content blocks)
-            target_message.message['content'].append({
-                'type': 'text',
-                'text': content_to_append
-            })
+            target_message.message["content"].append(
+                {
+                    "type": "text",
+                    "text": content_to_append,
+                },
+            )
         else:
             logger.error(f"Unsupported content type: {type(current_content)}")
             return None
-        
+
         # Update timestamp
         target_message.update_time = datetime.now(timezone.utc).isoformat()
-        
+
         # Optional: Log to file
-        if hasattr(self, 'log_storage_path'):
+        if hasattr(self, "log_storage_path"):
             content_log = (
-                "=" * 10 + "\n"
-                f"APPEND to Role: {target_message.message.get('role')}\n"
-                f"Appended: {content_to_append}\n"
-                "=" * 10 + "\n"
+                "=" * 10
+                + "\n"
+                + f"APPEND to Role: {target_message.message.get('role')}\n"
+                + f"Appended: {content_to_append}\n"
+                + "=" * 10
+                + "\n"
             )
             with open(self.log_storage_path, "a") as file:
                 file.write(content_log)
-        
+
         return target_message
 
     async def get_messages(self) -> List[MockMessage]:

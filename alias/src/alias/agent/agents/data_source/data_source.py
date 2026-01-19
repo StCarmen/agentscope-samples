@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import os
 import json
 
@@ -7,7 +8,11 @@ import yaml
 
 from agentscope.mcp import StdIOStatefulClient
 from alias.agent.agents.data_source.data_skill import DataSkillManager
-from alias.agent.agents.data_source._typing import SOURCE_TYPE_TO_ACCESS_TYPE, SourceAccessType, SourceType
+from alias.agent.agents.data_source._typing import (
+    SOURCE_TYPE_TO_ACCESS_TYPE,
+    SourceAccessType,
+    SourceType,
+)
 from alias.agent.agents.data_source.utils import replace_placeholders
 from alias.agent.tools.toolkit_hooks.text_post_hook import TextPostHook
 from alias.agent.tools.alias_toolkit import AliasToolkit
@@ -42,17 +47,17 @@ class DataSource:
             description: Optional description of the data source
             config: Configuration for this data source
         """
-        
+
         self.endpoint = endpoint
         self.name = name
-        
+
         source_access_type = SOURCE_TYPE_TO_ACCESS_TYPE.get(source_type)
         if source_access_type is None:
             raise ValueError(f"Invalid access type")
-        
+
         self.source_access_type = source_access_type
         self.source_type = source_type
-        
+
         self.config = config or {}
         self.profile = {}
         self.source_desc = None
@@ -70,10 +75,12 @@ class DataSource:
 
         logger.info(f"Preparing data source {self.name}...")
 
-        if self.source_access_type == SourceAccessType.LOCAL_FILE and os.path.exists(
-            self.endpoint
+        if (
+            self.source_access_type == SourceAccessType.LOCAL_FILE
+            and os.path.exists(
+                self.endpoint,
+            )
         ):
-
             # Get the filename and construct target path in workspace
             filename = os.path.basename(self.endpoint)
             target_path = f"/workspace/{filename}"
@@ -90,7 +97,7 @@ class DataSource:
 
             self.source_desc = "Local file"
             self.source_access_desc = f"Access at path: `{target_path}`"
-            
+
             logger.info(f"Successfully loaded to {result}")
 
         # Check if this is an MCP tool source
@@ -100,53 +107,88 @@ class DataSource:
 
             if len(mcp_server_name) != 1:
                 raise ValueError(f"Register server one by one!")
-            
+
             mcp_server_name = list(mcp_server_name)[0]
             server_config = server_config[mcp_server_name]
-            client = StdIOStatefulClient(self.name, command=server_config["command"], args=server_config["args"], env=server_config["env"])
-            
-            text_hook = TextPostHook(toolkit.sandbox, budget=5000, auto_save=True)
+            client = StdIOStatefulClient(
+                self.name,
+                command=server_config["command"],
+                args=server_config["args"],
+                env=server_config["env"],
+            )
+
+            text_hook = TextPostHook(
+                toolkit.sandbox,
+                budget=5000,
+                auto_save=True,
+            )
             await toolkit.add_and_connect_mcp_client(
                 client,
-                postprocess_func=text_hook.truncate_and_save_response
+                postprocess_func=text_hook.truncate_and_save_response,
             )
-            registered_tools = [t.name for t in list(await toolkit.additional_mcp_clients[-1].list_tools())]
+            registered_tools = [
+                t.name
+                for t in list(
+                    await toolkit.additional_mcp_clients[-1].list_tools(),
+                )
+            ]
 
             self.source_desc = f"{self.source_type}"
-            self.source_access_desc = f"Access via MCP tools: [{', '.join(registered_tools)}]"
+            self.source_access_desc = (
+                f"Access via MCP tools: [{', '.join(registered_tools)}]"
+            )
 
             logger.info(f"Successfully connected to {self.name}")
 
         else:
-            logger.info(f"Skipping preparation for source type: {self.source_type}")
+            logger.info(
+                f"Skipping preparation for source type: {self.source_type}",
+            )
 
     def get_coarse_desc(self):
         return f"{self.source_desc}. {self.source_access_desc}"
-    
+
     def _get_profile(self, sandbox) -> Optional[Dict[str, Any]]:
         """Run type-specific profiling."""
         if not self.profile:
             try:
-                raw_profile = data_profile(sandbox, self.source_access, self.source_type)
-                
+                raw_profile = data_profile(
+                    sandbox,
+                    self.source_access,
+                    self.source_type,
+                )
+
                 if self.source_type == SourceType.IMAGE:
                     self.profile = raw_profile.content[0]["text"]
-                elif self.source_type in [SourceType.CSV, SourceType.EXCEL, SourceType.RELATIONAL_DB]:
+                elif self.source_type in [
+                    SourceType.CSV,
+                    SourceType.EXCEL,
+                    SourceType.RELATIONAL_DB,
+                ]:
                     self.profile = raw_profile.content[0]["text"]
                 else:
-                    print(f"Unsupported source type in data profile {self.source_type}")
+                    print(
+                        f"Unsupported source type in data profile {self.source_type}",
+                    )
                     self.profile = {}
             except Exception as e:
                 self.profile = {}
                 logger.error(f"Error when profile data: {e}")
 
         return self.profile
-        
+
     def _refined_profile(self) -> str:
         if self.profile:
-            return yaml.dump(self.profile, allow_unicode=True, sort_keys=False, default_flow_style=None, width=float("inf"))
+            return yaml.dump(
+                self.profile,
+                allow_unicode=True,
+                sort_keys=False,
+                default_flow_style=None,
+                width=float("inf"),
+            )
         else:
             return ""
+
     def _general_profile(self) -> str:
         return self.profile["description"] if self.profile else ""
 
@@ -164,21 +206,23 @@ class DataSourceManager:
     Also manages data source configurations with hierarchical lookup.
     """
 
-    _default_data_source_config = "src/alias/agent/agents/data_source/_default_config.json"
+    _default_data_source_config = (
+        "src/alias/agent/agents/data_source/_default_config.json"
+    )
 
     def __init__(self):
         """Initialize an empty data source manager."""
         self._data_sources: Dict[str, DataSource] = {}
         self._type_defaults = {}
-        
+
         self._load_default_config()
-        
+
         self.skill_manager = DataSkillManager()
         self.selected_skills = None
-        
+
     def add_data_source(
-        self, 
-        config: str|Dict = None
+        self,
+        config: str | Dict = None,
     ):
         """
         Add a new data source (or multiple sources) to the manager.
@@ -186,17 +230,19 @@ class DataSourceManager:
         Args:
             config: endpoint(Address/DNS/URL/path to the data source) or configuration for data source conection
         """
-        
+
         if isinstance(config, str):
             endpoint = config
             conn_config = None
         else:
             if "endpoint" not in config:
-                logger.error(f"Missing 'endpoint' in config for source '{config}'")
+                logger.error(
+                    f"Missing 'endpoint' in config for source '{config}'",
+                )
 
             endpoint = config["endpoint"]
             conn_config = config.get("mcp_server")
-                
+
         sources = set()
         if os.path.isdir(endpoint):
             # Add all files in directory
@@ -209,23 +255,25 @@ class DataSourceManager:
         for endpoint in sources:
             # Auto-detect source type
             source_type = self._detect_source_type(endpoint)
-            
+
             # Auto-generate name
             name = self._generate_name(endpoint)
-            
+
             # Get configuration for this data source
             if not conn_config:
                 conn_config = self.get_default_config(source_type)
 
             if conn_config:
-                conn_config = replace_placeholders(conn_config, {
-                    "endpoint": endpoint
-                })
+                conn_config = replace_placeholders(
+                    conn_config,
+                    {
+                        "endpoint": endpoint,
+                    },
+                )
 
             # Create data source with configuration
             data_source = DataSource(endpoint, source_type, name, conn_config)
             self._data_sources[endpoint] = data_source
-
 
     async def prepare_data_sources(self, toolkit) -> None:
         """
@@ -259,14 +307,24 @@ class DataSourceManager:
                 return self._sanitize_name(name_without_ext)
 
             # For database connections
-            db_indicators = ["://", ".db", ".sqlite", "mongodb://", "mongodb+srv://", "neo4j://", "bolt://"]
-            if any(indicator in endpoint.lower() for indicator in db_indicators):
+            db_indicators = [
+                "://",
+                ".db",
+                ".sqlite",
+                "mongodb://",
+                "mongodb+srv://",
+                "neo4j://",
+                "bolt://",
+            ]
+            if any(
+                indicator in endpoint.lower() for indicator in db_indicators
+            ):
                 if "://" in endpoint:
                     try:
                         # Split by :// to get scheme and rest
                         scheme, rest = endpoint.split("://", 1)
                         scheme = scheme.lower()
-                        
+
                         # Handle authentication (user:password@host)
                         if "@" in rest:
                             auth_part, host_part = rest.split("@", 1)
@@ -275,27 +333,37 @@ class DataSourceManager:
                                 username = auth_part.split(":")[0]
                                 rest = f"{username}@{host_part}"
                             # If no colon, it's just username@host, keep as is
-                        
+
                         # Extract database name
                         db_name = "unknown"
                         if "/" in rest:
                             # Split by / and take last part before query parameters
                             path_parts = rest.split("/")
                             if len(path_parts) > 1:
-                                db_name = path_parts[-1].split("?")[0].split("#")[0]
+                                db_name = (
+                                    path_parts[-1].split("?")[0].split("#")[0]
+                                )
                                 if not db_name:  # If empty, try second to last
-                                    db_name = path_parts[-2] if len(path_parts) > 2 else "unknown"
+                                    db_name = (
+                                        path_parts[-2]
+                                        if len(path_parts) > 2
+                                        else "unknown"
+                                    )
                         else:
                             # Use host name if no database name in path
-                            host = rest.split(":")[0].split("/")[0].split("@")[-1]
+                            host = (
+                                rest.split(":")[0].split("/")[0].split("@")[-1]
+                            )
                             db_name = host
-                        
+
                         # Create name: scheme_dbname
                         return self._sanitize_name(f"{scheme}_{db_name}")
                     except Exception as e:
-                        logger.warning(f"Error parsing database URL {endpoint}: {e}")
+                        logger.warning(
+                            f"Error parsing database URL {endpoint}: {e}",
+                        )
                         # Fall through to URL handling
-                
+
                 elif "." in endpoint:
                     # Use filename without extension for .db/.sqlite files
                     filename = os.path.basename(endpoint)
@@ -308,7 +376,9 @@ class DataSourceManager:
                     parsed = urlparse(endpoint)
                     if parsed.netloc:
                         # Use domain name (without port)
-                        domain = parsed.netloc.split(":")[0].split("@")[-1]  # Remove username if present
+                        domain = parsed.netloc.split(":")[0].split("@")[
+                            -1
+                        ]  # Remove username if present
                         # If path exists, use last part of path
                         if parsed.path and parsed.path != "/":
                             path_parts = parsed.path.strip("/").split("/")
@@ -334,21 +404,21 @@ class DataSourceManager:
     def _sanitize_name(self, name: str) -> str:
         """Sanitize a name to be used as a data source identifier."""
         import re
-        
+
         # Keep only alphanumeric and underscore characters
         sanitized = re.sub(r"[^a-zA-Z0-9_]", "_", name)
-        
+
         # Ensure it starts with a letter or underscore
         if sanitized and not sanitized[0].isalpha() and sanitized[0] != "_":
             sanitized = "_" + sanitized
-            
+
         # Truncate if too long
         sanitized = sanitized[:50]
-        
+
         # Ensure it's not empty
         if not sanitized:
             sanitized = "unknown"
-            
+
         return sanitized
 
     def _detect_source_type(self, endpoint: str) -> SourceType:
@@ -364,7 +434,9 @@ class DataSourceManager:
             source_type = SourceType.JSON
         elif endpoint_lower.endswith((".txt", ".log", ".md")):
             source_type = SourceType.TEXT
-        elif endpoint_lower.endswith((".jpg", ".jpeg", ".png", ".gif", ".bmp")):
+        elif endpoint_lower.endswith(
+            (".jpg", ".jpeg", ".png", ".gif", ".bmp"),
+        ):
             source_type = SourceType.IMAGE
         elif endpoint_lower.endswith(".pdf"):
             source_type = SourceType.PDF
@@ -393,7 +465,10 @@ class DataSourceManager:
             source_type = SourceType.RELATIONAL_DB
 
         # Document databases
-        elif "mongodb://" in endpoint_lower or "mongodb+srv://" in endpoint_lower:
+        elif (
+            "mongodb://" in endpoint_lower
+            or "mongodb+srv://" in endpoint_lower
+        ):
             source_type = SourceType.DOCUMENT_DB
 
         # Graph databases
@@ -412,7 +487,7 @@ class DataSourceManager:
             source_type = SourceType.TEXT
 
         return source_type
-            
+
     def get_all_data_sources_desc(self) -> List[str]:
         """
         Get descriptions of all data sources.
@@ -420,15 +495,24 @@ class DataSourceManager:
         Returns:
             List of data source descriptions
         """
-        return "Available data sources: \n" + "\n".join([f"[{idx}] " + ds.get_coarse_desc() for idx, ds in enumerate(self._data_sources.values())])
-    
+        return "Available data sources: \n" + "\n".join(
+            [
+                f"[{idx}] " + ds.get_coarse_desc()
+                for idx, ds in enumerate(self._data_sources.values())
+            ],
+        )
+
     def get_local_data_sources(self) -> List[str]:
         """
         Get list of local data source endpoints
         """
 
-        return [ds.endpoint for ds in self._data_sources.values() if ds.source_access_type == SourceAccessType.LOCAL_FILE]
-    
+        return [
+            ds.endpoint
+            for ds in self._data_sources.values()
+            if ds.source_access_type == SourceAccessType.LOCAL_FILE
+        ]
+
     def get_all_data_sources_name(self) -> List[DataSource]:
         """
         Get a list of all data sources.
@@ -468,7 +552,11 @@ class DataSourceManager:
     def _load_default_config(self) -> None:
         """Load default type to configuration."""
         try:
-            with open(self._default_data_source_config, "r", encoding="utf-8") as f:
+            with open(
+                self._default_data_source_config,
+                "r",
+                encoding="utf-8",
+            ) as f:
                 config = json.load(f)
 
             # Load type defaults
@@ -494,7 +582,9 @@ class DataSourceManager:
     def get_data_skills(self):
         # TODO: update when data source changed
         if self.selected_skills is None:
-            source_types = [data.source_type for data in self._data_sources.values()]
+            source_types = [
+                data.source_type for data in self._data_sources.values()
+            ]
             self.selected_skills = self.skill_manager.load(source_types)
-            
+
         return "\n".join(self.selected_skills)

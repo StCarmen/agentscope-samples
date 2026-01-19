@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import os
 
 from alias.agent.agents.data_source.data_source import DataSourceManager
@@ -12,32 +13,45 @@ else:
     from alias.agent.mock import MockSessionService as SessionService
 
 
-async def build_data_manager(session_service: SessionService, toolkit: AliasToolkit):
+async def build_data_manager(
+    session_service: SessionService,
+    toolkit: AliasToolkit,
+):
     data_manager = DataSourceManager()
-    if hasattr(session_service.session_entity, "data_config") and session_service.session_entity.data_config:
+    if (
+        hasattr(session_service.session_entity, "data_config")
+        and session_service.session_entity.data_config
+    ):
         data_configs = session_service.session_entity.data_config
         for config in data_configs:
             data_manager.add_data_source(config)
-    
+
     await data_manager.prepare_data_sources(toolkit)
     return data_manager
 
-async def add_user_data_message(session_service: SessionService, data_manager: DataSourceManager):
-    await session_service.append_to_latest_message("\n\n" + data_manager.get_all_data_sources_desc())
+
+async def add_user_data_message(
+    session_service: SessionService,
+    data_manager: DataSourceManager,
+):
+    await session_service.append_to_latest_message(
+        "\n\n" + data_manager.get_all_data_sources_desc(),
+    )
+
 
 def get_data_source_config_from_file(config_file: str):
     """Load and parse data source configuration from a JSON file."""
     import json
     import os
-    
+
     # Validate file existence upfront
     if not os.path.isfile(config_file):
         raise FileNotFoundError(f"Configuration file not found: {config_file}")
-    
+
     try:
         with open(config_file, "r", encoding="utf-8") as f:
             return json.load(f)
     except json.JSONDecodeError as e:
         raise ValueError(
-            f"Invalid JSON in data source configuration file `'{config_file}'`: {e.msg} at line {e.lineno}"
+            f"Invalid JSON in data source configuration file `'{config_file}'`: {e.msg} at line {e.lineno}",
         ) from e

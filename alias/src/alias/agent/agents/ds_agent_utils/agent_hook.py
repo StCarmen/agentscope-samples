@@ -137,7 +137,7 @@ async def files_filter_pre_reply_hook(
     # Even if the user only uploaded supplementary files in this interaction,
     # We will also check whether the previously uploaded files are relevant
     # to the question.
-    
+
     uploaded_files = list(
         set(files_list) | set(self.data_manager.get_local_data_sources()),
     )

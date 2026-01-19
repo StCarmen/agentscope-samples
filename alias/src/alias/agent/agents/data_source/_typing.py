@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 
 from enum import Enum
 
@@ -36,7 +37,6 @@ class SourceType(str, Enum):
 
     def __str__(self):
         return self.value
-    
 
     def is_valid_source_type(value: str) -> bool:
         try:
@@ -56,15 +56,12 @@ SOURCE_TYPE_TO_ACCESS_TYPE = {
     SourceType.IMAGE: SourceAccessType.LOCAL_FILE,
     SourceType.PDF: SourceAccessType.LOCAL_FILE,
     SourceType.PARQUET: SourceAccessType.LOCAL_FILE,
-    
     # Database types -> MCP_TOOL
     SourceType.RELATIONAL_DB: SourceAccessType.MCP_TOOL,
     SourceType.DOCUMENT_DB: SourceAccessType.MCP_TOOL,
     SourceType.GRAPH_DB: SourceAccessType.MCP_TOOL,
-    
     # API type -> HTTP_URL
     SourceType.API: SourceAccessType.HTTP_URL,
-    
     # Unknown type -> depends on endpoint
     SourceType.UNKNOWN: None,
 }

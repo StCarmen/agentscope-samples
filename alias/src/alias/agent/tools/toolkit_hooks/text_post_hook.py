@@ -20,7 +20,7 @@ class TextPostHook:
         Args:
             sandbox: The sandbox environment for file operations.
             budget: Maximum character count before truncation (default: 81,940).
-                    Approximately 20K tokens for English text or 160K tokens 
+                    Approximately 20K tokens for English text or 160K tokens
                     for Chinese text. Adjust based on your model's context window.
             auto_save: Whether to save complete content to file when truncated.
                     - False: Save only after being truncated (default)
@@ -29,7 +29,7 @@ class TextPostHook:
         self.sandbox = sandbox
         self.auto_save = auto_save
         self.budget = budget
-        
+
     def truncate_and_save_response(  # pylint: disable=R1710
         self,
         tool_use: ToolUseBlock,  # pylint: disable=W0613
@@ -47,7 +47,7 @@ class TextPostHook:
             tool_use: The tool use block that triggered the response (unused).
             tool_response: The tool response to potentially truncate.
         """
-        
+
         budget = self.budget
         append_hint = "\n\n[Content is too long and truncated....]"
 
@@ -61,7 +61,7 @@ class TextPostHook:
         if isinstance(tool_response.content, list):
             save_text_block = None
             is_truncated = False
-            
+
             for _i, block in enumerate(tool_response.content):
                 if block["type"] == "text":
                     text = block["text"]
@@ -70,7 +70,7 @@ class TextPostHook:
                     # If this block exceeds remaining budget, truncate it
                     if text_len > budget:
                         is_truncated = True
-                        
+
                         # Calculate truncation threshold
                         # (80% of proportional budget)
                         threshold = int(budget * 0.85)
@@ -82,42 +82,45 @@ class TextPostHook:
                         )
                     else:
                         new_tool_response.content.append(block)
-                    
+
                     budget -= text_len
                     if budget <= 0:
                         break
-            
+
             # Save file if auto_save=True or content was truncated
             if self.auto_save or is_truncated:
                 tmp_file_name_prefix = tool_use.get("name", "")
                 save_text_block = self._save_tmp_file(
                     tmp_file_name_prefix,
                     tool_response.content,
-                    is_truncated=is_truncated
+                    is_truncated=is_truncated,
                 )
                 new_tool_response.content.append(save_text_block)
-                
+
             return new_tool_response
-        
+
         elif isinstance(tool_response.content, str):
             text_len = len(tool_response.content)
             text = tool_response.content
             is_truncated = text_len > budget
-            
+
             # Save file if auto_save=True or content was truncated
             if self.auto_save or is_truncated:
                 tmp_file_name_prefix = tool_use.get("name", "")
                 save_text_block = self._save_tmp_file(
                     tmp_file_name_prefix,
                     tool_response.content,
-                    is_truncated=is_truncated
+                    is_truncated=is_truncated,
                 )
-                
+
                 if is_truncated:
                     # Calculate truncation threshold (80% of proportional budget)
                     threshold = int(budget / text_len * len(text) * 0.8)
                     tool_response.content = [
-                        TextBlock(type="text", text=text[:threshold] + append_hint),
+                        TextBlock(
+                            type="text",
+                            text=text[:threshold] + append_hint,
+                        ),
                         save_text_block,
                     ]
                 else:
@@ -125,13 +128,17 @@ class TextPostHook:
                         TextBlock(type="text", text=text),
                         save_text_block,
                     ]
-                
+
                 return tool_response
-            
+
             return tool_response
 
-
-    def _save_tmp_file(self, save_file_name_prefix: str, content: list | str, is_truncated: True):
+    def _save_tmp_file(
+        self,
+        save_file_name_prefix: str,
+        content: list | str,
+        is_truncated: True,
+    ):
         create_workspace_directory(self.sandbox, TMP_FILE_DIR)
         save_file_name = (
             save_file_name_prefix
@@ -150,15 +157,18 @@ class TextPostHook:
             file_path,
             wrapped,
         )
-        return TextBlock(
-            type="text",
-            text=f"Dump the complete long file at {file_path}. "
-            "Don't try to read the complete file directly. "
-            "Use `grep -C 10 'YOUR_PATTERN' {file_path}` or "
-            "other bash command to extract "
-            "useful information.",
-        ) if is_truncated else TextBlock(
-            type="text",
-            text=f"Results dumped at {file_path}. ",
+        return (
+            TextBlock(
+                type="text",
+                text=f"Dump the complete long file at {file_path}. "
+                "Don't try to read the complete file directly. "
+                "Use `grep -C 10 'YOUR_PATTERN' {file_path}` or "
+                "other bash command to extract "
+                "useful information.",
+            )
+            if is_truncated
+            else TextBlock(
+                type="text",
+                text=f"Results dumped at {file_path}. ",
+            )
         )
-
