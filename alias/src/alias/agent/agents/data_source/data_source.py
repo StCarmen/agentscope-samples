@@ -3,6 +3,7 @@ import json
 
 from loguru import logger
 from typing import Dict, Any, Optional, List
+import yaml
 
 from agentscope.mcp import StdIOStatefulClient
 from alias.agent.agents.data_source.data_skill import DataSkillManager
@@ -10,6 +11,8 @@ from alias.agent.agents.data_source._typing import SOURCE_TYPE_TO_ACCESS_TYPE, S
 from alias.agent.agents.data_source.utils import replace_placeholders
 from alias.agent.tools.toolkit_hooks.text_post_hook import TextPostHook
 from alias.agent.tools.alias_toolkit import AliasToolkit
+from alias.agent.agents.data_source.data_profile import data_profile
+
 
 from alias.agent.tools.sandbox_util import (
     copy_local_file_to_workspace,
@@ -94,7 +97,7 @@ class DataSource:
         elif self.source_access_type == SourceAccessType.MCP_TOOL:
             server_config = self.config.get("mcp_server", {})
             mcp_server_name = server_config.keys()
-            
+
             if len(mcp_server_name) != 1:
                 raise ValueError(f"Register server one by one!")
             
@@ -120,20 +123,32 @@ class DataSource:
     def get_coarse_desc(self):
         return f"{self.source_desc}. {self.source_access_desc}"
     
-    def _get_profile(self) -> Optional[Dict[str, Any]]:
+    def _get_profile(self, sandbox) -> Optional[Dict[str, Any]]:
         """Run type-specific profiling."""
-
         if not self.profile:
-            profiling_methods = {}
-            profile_method = profiling_methods.get(
-                self.source_type, self._profile_data_source
-            )
-            if profile_method:
-                self.profile = profile_method()
-            else:
+            try:
+                raw_profile = data_profile(sandbox, self.source_access, self.source_type)
+                
+                if self.source_type == SourceType.IMAGE:
+                    self.profile = raw_profile.content[0]["text"]
+                elif self.source_type in [SourceType.CSV, SourceType.EXCEL, SourceType.RELATIONAL_DB]:
+                    self.profile = raw_profile.content[0]["text"]
+                else:
+                    print(f"Unsupported source type in data profile {self.source_type}")
+                    self.profile = {}
+            except Exception as e:
                 self.profile = {}
+                logger.error(f"Error when profile data: {e}")
 
         return self.profile
+        
+    def _refined_profile(self) -> str:
+        if self.profile:
+            return yaml.dump(self.profile, allow_unicode=True, sort_keys=False, default_flow_style=None, width=float("inf"))
+        else:
+            return ""
+    def _general_profile(self) -> str:
+        return self.profile["description"] if self.profile else ""
 
     def __str__(self) -> str:
         return f"DataSource(name='{self.name}', type='{self.source_type}', endpoint='{self.endpoint}')"
