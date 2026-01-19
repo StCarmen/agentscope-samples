@@ -1,6 +1,6 @@
 ---
 name: machine-learning
-description: Guidelines for data modeling tasks from exploration to output
+description: Guidelines for machine learning tasks from exploration to output
 ---
 
 # Data Modeling Tasks

@@ -28,7 +28,6 @@ When executing any data science task (data loading, cleaning, analysis, modeling
 ---
 
 ## Principles: Fact-Based, No Assumptions
-
 - All decisions must be grounded in the **given task context**. Never simplify, generalize, or subjectively interpret the task goal, data purpose, or business scenario. Any action inconsistent with the problem context is invalid and dangerous.
 - Never act on assumptions, guesses, or past experience—even if the situation seems "obvious" or "routine."
 - Solutions must be based solely on verified, observed data.
@@ -39,14 +38,41 @@ When executing any data science task (data loading, cleaning, analysis, modeling
 ## Task Management Rules
 
 - **You must use `create_plan` to create a task plan**, especially for multi-step tasks.
-   - Use `update_subtask_state` to mark subtasks as 'in_progress' when starting them.
-   - Use `finish_subtask` to mark subtasks as 'done' with specific outcomes upon completion.
-   - Use `finish_plan` to finalize the entire task when all subtasks are complete.
-   - Skipping planning risks missing critical steps—this is unacceptable.
+- Use `update_subtask_state` to mark subtasks as 'in_progress' when starting them.
+- Use `finish_subtask` to mark subtasks as 'done' with specific outcomes upon completion.
+- Use `finish_plan` to finalize the entire task when all subtasks are complete.
+- Skipping planning risks missing critical steps—this is unacceptable.
 
 ---
 
 ## Tool Invocation Protocols
+
+### Code Execution
+
+**For all Python code execution:**
+
+1. **Write code to file first** using `write_file` or similar tools
+2. **Execute via shell** using `run_shell_command` with `python <filename>.py`
+3. **For large and key results**: Save to file (CSV/JSON/pickle), load in next step. Avoid printing large outputs or passing data via stdout
+4. **Never execute code inline or outside this workflow**
+
+**Example:**
+Tool: `write_file`
+Arguments: {
+"file_path": "/workspace/code/analysis.py",
+"content": "import pandas as pd\ndf = pd.read_csv('data.csv')\nprint(df.head())"
+}
+
+Tool: `run_shell_command`
+Arguments: {
+"command": "python /workspace/code/analysis.py"
+}
+
+Tool: `write_file`
+Arguments: {
+"file_path": "/workspace/code/step1_aggregate.py",
+"content": "import pandas as pd\ndf = pd.read_csv('raw_data.csv')\nprocessed = df.groupby('category').sum()\nprocessed.to_csv('/workspace/data/intermediate_result.csv', index=False)\nprint('✓ Results saved')"
+}
 
 ### Messy Spreadsheet Handling
 

@@ -17,10 +17,15 @@ from alias.agent.agents import (
     BrowserAgent,
     DeepResearchAgent,
     MetaPlanner,
-    DataScienceAgent,
-    init_ds_toolkit,
     init_dr_toolkit,
 )
+
+if os.getenv("DSA_VERSION") == 'PY_FILE':
+    from alias.agent.agents._data_science_agent_v2 import DataScienceAgent, init_ds_toolkit
+else:
+    from alias.agent.agents._data_science_agent import DataScienceAgent, init_ds_toolkit
+
+
 from alias.agent.agents.meta_planner_utils._worker_manager import share_tools
 from alias.agent.mock import MockSessionService as SessionService
 from alias.agent.tools import AliasToolkit
@@ -34,9 +39,6 @@ from alias.agent.utils.constants import (
 from alias.agent.utils.prepare_data_source import add_user_data_message, build_data_manager
 
 from alias.agent.tools.add_tools import add_tools
-from alias.agent.agents.ds_agent_utils import (
-    add_ds_specific_tool,
-)
 from alias.agent.memory.longterm_memory import AliasLongTermMemory
 from alias.server.clients.memory_client import MemoryClient
 
@@ -328,18 +330,10 @@ async def arun_datascience_agent(
     session_service: SessionService,  # type: ignore[valid-type]
     sandbox: Sandbox = None,
 ):
-    global_toolkit = AliasToolkit(sandbox, add_all=True)
-    # await add_tools(global_toolkit)
-    worker_toolkit = AliasToolkit(sandbox)
     model, formatter = MODEL_FORMATTER_MAPPING[MODEL_CONFIG_NAME]
-    test_tool_list = [
-        "write_file",
-        "run_ipython_cell",
-        "run_shell_command",
-    ]
-    share_tools(global_toolkit, worker_toolkit, test_tool_list)
-    add_ds_specific_tool(worker_toolkit)
-    
+
+    global_toolkit = AliasToolkit(sandbox, add_all=True)
+    worker_toolkit = init_ds_toolkit(global_toolkit)
     data_manager = await build_data_manager(session_service, worker_toolkit)
     await add_user_data_message(session_service, data_manager)
         

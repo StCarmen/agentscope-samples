@@ -1,6 +1,7 @@
 ---
 name: exploratory-data-analysis
-description: Guidelines for advanced exploratory data analysis using methods like Pareto Drill-Down Analysis
+description: Guidelines for conducting open data analysis, including but not limit to root cause analysis, trend detection, and anomaly detection.
+
 ---
 
 # Advanced Exploratory Data Analysis (EDA)
