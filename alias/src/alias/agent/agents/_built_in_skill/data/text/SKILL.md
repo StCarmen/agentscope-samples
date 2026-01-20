@@ -14,7 +14,7 @@ type: text
 
 ## Encoding & Detection
 
-- Encoding Strategy: 
+- Encoding Strategy:
   - Default to `utf-8`.
   - If it fails, try `utf-8-sig` (for files with BOM), `gbk/gb18030` (for Chinese context), or `latin-1`.
   - Use `chardet` or similar logic if encoding is unknown and first few bytes look non-standard.

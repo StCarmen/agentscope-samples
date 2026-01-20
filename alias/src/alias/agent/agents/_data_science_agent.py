@@ -56,7 +56,7 @@ class DataScienceAgent(AliasAgentBase):
         memory: MemoryBase,
         toolkit: AliasToolkit,
         data_manager: DataSourceManager = None,
-        sys_prompt: str = None,
+        sys_prompt: str = "",
         max_iters: int = 30,
         tmp_file_storage_dir: str = "/workspace",
         state_saving_dir: Optional[str] = None,

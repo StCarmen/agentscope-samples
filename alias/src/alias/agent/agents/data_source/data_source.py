@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
 import json
+from pathlib import Path
 
 from loguru import logger
 from typing import Dict, Any, Optional, List
@@ -18,6 +19,7 @@ from alias.agent.tools.toolkit_hooks.text_post_hook import TextPostHook
 from alias.agent.tools.alias_toolkit import AliasToolkit
 from alias.agent.agents.data_source.data_profile import data_profile
 
+from agentscope_runtime.sandbox.box.sandbox import Sandbox
 
 from alias.agent.tools.sandbox_util import (
     copy_local_file_to_workspace,
@@ -218,11 +220,12 @@ class DataSourceManager:
     Also manages data source configurations with hierarchical lookup.
     """
 
-    _default_data_source_config = (
-        "src/alias/agent/agents/data_source/_default_config.json"
+    _default_data_source_config = os.path.join(
+        Path(__file__).resolve().parent,
+        "_default_config.json",
     )
 
-    def __init__(self):
+    def __init__(self, sandbox: Sandbox):
         """Initialize an empty data source manager."""
         self._data_sources: Dict[str, DataSource] = {}
         self._type_defaults = {}
@@ -231,6 +234,8 @@ class DataSourceManager:
 
         self.skill_manager = DataSkillManager()
         self.selected_skills = None
+
+        self.toolkit = AliasToolkit(sandbox=sandbox)
 
     def add_data_source(
         self,
@@ -287,7 +292,7 @@ class DataSourceManager:
             data_source = DataSource(endpoint, source_type, name, conn_config)
             self._data_sources[endpoint] = data_source
 
-    async def prepare_data_sources(self, toolkit) -> None:
+    async def prepare_data_sources(self) -> None:
         """
         Prepare all data sources.
 
@@ -298,7 +303,7 @@ class DataSourceManager:
 
         all_data_sources = self._data_sources.values()
         for data_source in all_data_sources:
-            await data_source.prepare(toolkit)
+            await data_source.prepare(self.toolkit)
 
     def _generate_name(self, endpoint: str) -> str:
         """

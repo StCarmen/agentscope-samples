@@ -17,13 +17,13 @@ type: image
 
 - Identify Properties: Use lightweight libraries (e.g., PIL/Pillow) to get `format`, `size` (width/height), and `mode` (RGB, RGBA, CMYK).
 - Check File Size: If the image is exceptionally large (e.g., >20MB or >100MP), consider downsampling or tiling before full processing.
-- Metadata/EXIF Extraction: 
+- Metadata/EXIF Extraction:
   - Read EXIF data for orientation, GPS tags, and timestamps.
   - Correction: Automatically apply EXIF orientation to ensure the image is "upright" before visual analysis.
 
 ## Content Extraction & Vision
 
-- Vision Analysis: 
+- Vision Analysis:
   - Use multimodal vision models to describe scenes, identify objects, and detect activities.
   - For complex images (e.g., infographics, UI screenshots), guide the model to focus on specific regions.
 - OCR (Optical Character Recognition):

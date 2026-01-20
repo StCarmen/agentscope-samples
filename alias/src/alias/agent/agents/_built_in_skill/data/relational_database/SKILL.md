@@ -52,7 +52,7 @@ type: relational_db
 
 - Index-Friendly Filters: Never wrap indexed columns in functions (e.g., `DATE()`, `UPPER()`) within the `WHERE` clause.
 - Join Safety: Always verify join keys. Before joining, check if the key has high cardinality to avoid massive intermediate result sets.
-- Memory Safety: 
+- Memory Safety:
   - Avoid `DISTINCT` and `UNION` (which performs de-duplication) on multi-million row sets unless necessary; use `UNION ALL` if duplicates are acceptable.
   - Avoid `ORDER BY` on large non-indexed text fields.
 - Wildcard Warning: Strictly avoid leading wildcards in `LIKE` patterns (e.g., `%term`) on large text columns.

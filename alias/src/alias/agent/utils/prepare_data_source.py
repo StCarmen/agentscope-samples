@@ -2,8 +2,8 @@
 import os
 
 from alias.agent.agents.data_source.data_source import DataSourceManager
-from alias.agent.tools.alias_toolkit import AliasToolkit
-
+from alias.agent.tools import AliasToolkit, share_tools
+from agentscope_runtime.sandbox.box.sandbox import Sandbox
 
 if os.getenv("TEST_MODE") not in ["local", "runtime-test"]:
     from alias.server.services.session_service import (
@@ -13,11 +13,25 @@ else:
     from alias.agent.mock import MockSessionService as SessionService
 
 
-async def build_data_manager(
+async def prepare_data_sources(
     session_service: SessionService,
-    toolkit: AliasToolkit,
+    sandbox: Sandbox,
+    binded_toolkit: AliasToolkit = None,
 ):
-    data_manager = DataSourceManager()
+    data_manager = await build_data_manager(session_service, sandbox)
+    if len(data_manager):
+        await add_user_data_message(session_service, data_manager)
+
+    if binded_toolkit:
+        add_data_source_tools(data_manager, binded_toolkit)
+
+    return data_manager
+
+
+async def build_data_manager(
+    session_service: SessionService, sandbox: Sandbox
+):
+    data_manager = DataSourceManager(sandbox)
     if (
         hasattr(session_service.session_entity, "data_config")
         and session_service.session_entity.data_config
@@ -26,8 +40,17 @@ async def build_data_manager(
         for config in data_configs:
             data_manager.add_data_source(config)
 
-    await data_manager.prepare_data_sources(toolkit)
+    await data_manager.prepare_data_sources()
     return data_manager
+
+
+def add_data_source_tools(
+    data_manager: DataSourceManager, *toolkits: AliasToolkit
+):
+    data_source_toolkit = data_manager.toolkit
+    tool_names = list(data_source_toolkit.tools.keys())
+    for toolkit in toolkits:
+        share_tools(data_source_toolkit, toolkit, tool_names)
 
 
 async def add_user_data_message(

@@ -367,7 +367,7 @@ class DashScopeMultiModalTools:
                         "column name": col,
                         "data type": dtype_name,
                         "data samples": samples,
-                    }
+                    },
                 )
             # Create a CSV snippet of the first few rows
             raw_data_snippet = df.head(5).to_csv(index=True)
@@ -412,7 +412,9 @@ class DashScopeMultiModalTools:
                 # TODO: use openpyxl to read excel to avoid irregular excel.
                 # Read a subset of each sheet
                 df = pd.read_excel(
-                    file_source, sheet_name=sheet_name, nrows=100
+                    file_source,
+                    sheet_name=sheet_name,
+                    nrows=100,
                 ).convert_dtypes()
                 table_schema = extract_schema_from_table(df, sheet_name)
                 table_schemas.append(table_schema)
@@ -526,7 +528,7 @@ class DashScopeMultiModalTools:
                             if i < len(row):
                                 val = row[i]
                                 sample_values.append(
-                                    str(val) if val is not None else "NULL"
+                                    str(val) if val is not None else "NULL",
                                 )
 
                         column_details.append(
@@ -534,7 +536,7 @@ class DashScopeMultiModalTools:
                                 "column name": col_name,
                                 "data type": col_type,
                                 "data sample": sample_values[:3],  # 取前3个样例值
-                            }
+                            },
                         )
 
                 table_info = {

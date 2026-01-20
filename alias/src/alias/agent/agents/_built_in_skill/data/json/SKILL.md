@@ -14,7 +14,7 @@ type: json
 
 ## Inspection (Always First)
 
-- Structure Discovery: 
+- Structure Discovery:
   - Determine if the root is a `list` or a `dict`.
   - Identify if it's a standard JSON or JSONL (one valid JSON object per line).
 - Schema Sampling:
@@ -42,7 +42,7 @@ type: json
   - Validate numeric strings vs. actual numbers.
   - Standardize `null`, `""`, and `[]` consistently.
 - Encoding: Default to UTF-8; check for BOM (utf-8-sig) if parsing fails.
-- Malformed JSON Recovery: 
+- Malformed JSON Recovery:
   - For minor syntax errors (e.g., single quotes instead of double), attempt `ast.literal_eval` or regex-based cleanup only as a fallback.
 
 ## Best Practices

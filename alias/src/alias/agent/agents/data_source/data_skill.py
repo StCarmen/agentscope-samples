@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
+from pathlib import Path
 from alias.agent.agents.data_source._typing import SourceType
 import frontmatter
 
@@ -19,14 +20,12 @@ class DataSkill(AgentSkill):
 
 class DataSkillManager:
     """Data Skill Selector Based on Data Source Type"""
-    
-    # 使用基于包安装路径的绝对路径,而不是相对路径
+
     _default_skill_path_base = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "_built_in_skill",
-        "data"
+        Path(__file__).resolve().parent.parent,
+        "_built_in_skill/data",
     )
-    
+
     def __init__(
         self,
     ):

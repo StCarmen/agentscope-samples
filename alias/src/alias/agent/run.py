@@ -43,8 +43,8 @@ from alias.agent.utils.constants import (
     DS_AGENT_DESCRIPTION,
 )
 from alias.agent.utils.prepare_data_source import (
-    add_user_data_message,
-    build_data_manager,
+    add_data_source_tools,
+    prepare_data_sources,
 )
 
 from alias.agent.tools.add_tools import add_tools
@@ -119,6 +119,16 @@ async def arun_meta_planner(
 
     # Init data science agent toolkit
     ds_toolkit = init_ds_toolkit(worker_full_toolkit)
+
+    # Initialize data source manager
+    data_manager = await prepare_data_sources(session_service, sandbox)
+    add_data_source_tools(
+        data_manager,
+        worker_full_toolkit,
+        browser_toolkit,
+        deep_research_toolkit,
+        ds_toolkit,
+    )
 
     try:
         model, formatter = MODEL_FORMATTER_MAPPING[MODEL_CONFIG_NAME]
@@ -195,6 +205,8 @@ async def arun_meta_planner(
             formatter=formatter,
             memory=InMemoryMemory(),
             toolkit=ds_toolkit,
+            data_manager=data_manager,
+            sys_prompt=data_manager.get_data_skills(),
             max_iters=30,
             session_service=session_service,
         )
@@ -232,6 +244,8 @@ async def arun_deepresearch_agent(
         "run_shell_command",
     ]
     share_tools(global_toolkit, worker_toolkit, test_tool_list)
+    await prepare_data_sources(session_service, sandbox, worker_toolkit)
+
     worker_agent = DeepResearchAgent(
         name="Deep_Research_Agent",
         model=model,
@@ -297,6 +311,7 @@ async def arun_finance_agent(
         description="Finance Analysis tools",
         active=True,
     )
+    await prepare_data_sources(session_service, sandbox, worker_toolkit)
 
     worker_agent = DeepResearchAgent(
         name="Deep_Research_Agent",
@@ -343,8 +358,9 @@ async def arun_datascience_agent(
 
     global_toolkit = AliasToolkit(sandbox, add_all=True)
     worker_toolkit = init_ds_toolkit(global_toolkit)
-    data_manager = await build_data_manager(session_service, worker_toolkit)
-    await add_user_data_message(session_service, data_manager)
+    data_manager = await prepare_data_sources(
+        session_service, sandbox, worker_toolkit
+    )
 
     try:
         worker_agent = DataScienceAgent(
@@ -397,6 +413,8 @@ async def arun_browseruse_agent(
         add_all=True,
         is_browser_toolkit=True,
     )
+    await prepare_data_sources(session_service, sandbox, browser_toolkit)
+
     logger.info("Init browser toolkit")
     try:
         browser_agent = BrowserAgent(
