@@ -8,7 +8,7 @@ from alias.agent.agents.ds_agent_utils.ds_config import (
     VL_MODEL_NAME,
 )
 from alias.agent.agents.data_source._multimodal_to_text import (
-    DashScopeMultiModalTools,
+    DashScopeProfile,
 )
 
 from alias.runtime.alias_sandbox.alias_sandbox import AliasSandbox
@@ -46,7 +46,7 @@ def data_profile(
     )
     # 1. Initialize the DashScope Multi-Modal Tool wrapper
     # Requires the API key from environment variables
-    dash_scope_multimodal_tool_set = DashScopeMultiModalTools(
+    dashscope_profiler = DashScopeProfile(
         sandbox=sandbox,
         dashscope_api_key=os.getenv("DASHSCOPE_API_KEY", ""),
     )
@@ -74,7 +74,7 @@ def data_profile(
             False,
         )
         # Delegate to the data-to-text generation method
-        return dash_scope_multimodal_tool_set.dashscope_data_to_text(
+        return dashscope_profiler.dashscope_data_to_text_profile(
             path=path,
             prompt=summary_prompt,
             model=MODEL_CONFIG_NAME,
@@ -91,7 +91,7 @@ def data_profile(
             False,
         )
         # Delegate to the image-to-text generation method
-        return dash_scope_multimodal_tool_set.dashscope_image_to_text(
+        return dashscope_profiler.dashscope_image_to_text_profile(
             image_url=path,
             prompt=summary_prompt,
             model=VL_MODEL_NAME,

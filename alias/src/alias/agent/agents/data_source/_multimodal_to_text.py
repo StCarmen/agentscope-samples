@@ -44,10 +44,10 @@ def _tool_clean_json(raw_response: str):
     return json.loads(cleaned_response)
 
 
-class DashScopeMultiModalTools:
+class DashScopeProfile:
     """
-    A set of multi-modal tools based on DashScope models.
-    Work with multi-modal content in sandbox and publicly accessible online.
+    A set of tools based on DashScope models
+    to profile multimodal data like csv, excel, database, image, etc.
     """
 
     def __init__(
@@ -58,7 +58,7 @@ class DashScopeMultiModalTools:
         self.sandbox = sandbox
         self.api_key = dashscope_api_key
 
-    def dashscope_audio_to_text(
+    def dashscope_audio_to_text_profile(
         self,
         audio_file_url: str,
         language: str = "en",
@@ -175,7 +175,7 @@ class DashScopeMultiModalTools:
                 ],
             )
 
-    def dashscope_image_to_text(
+    def dashscope_image_to_text_profile(
         self,
         image_url: str,
         prompt: str = "Describe the image",
@@ -295,12 +295,14 @@ class DashScopeMultiModalTools:
             file_path (str): The path or URL to the CSV or Excel file.
 
         Returns:
-            dict: A dictionary containing the schema of the file (tables, columns, etc.),
+            dict: A dictionary containing the schema of the file
+            (tables, columns, etc.),
         """
 
         def copy_file_from_sandbox(file_path: str, suffix: str) -> str:
             """
-            Copies a file from the sandbox environment or a URL to a local temporary file.
+            Copies a file from the sandbox environment
+            or a URL to a local temporary file.
 
             Args:
                 path (str): Source path or URL.
@@ -344,7 +346,8 @@ class DashScopeMultiModalTools:
                 dtype_name = str(df[col].dtype).upper()
                 # Get random samples to help LLM understand the data content
                 # sample(frac=1): shuffle the data
-                # head(n_samples): get the first n_samples, if there are less than n_samples, all retrieved here without any errors.
+                # head(n_samples): get the first n_samples,
+                # if less than n_samples, retrieved here without any errors.
                 candidates = (
                     df[col]
                     .drop_duplicates()
@@ -353,15 +356,13 @@ class DashScopeMultiModalTools:
                     .astype(str)
                     .tolist()
                 )
-                # Limit the size of the raw data snippet not to exceed 1000 characters.
+                # Limit the size not to exceed 1000 characters.
                 # TODO: dynamic size control? 1000 is too small?
                 samples = []
                 length = 0
-                [
-                    samples.append(s)
-                    for s in candidates
-                    if (length := length + len(s)) <= 1000
-                ]
+                for s in candidates:
+                    if (length := length + len(s)) <= 1000:
+                        samples.append(s)
                 col_list.append(
                     {
                         "column name": col,
@@ -404,7 +405,7 @@ class DashScopeMultiModalTools:
             Handles schema extraction for Excel files.
             Treats each sheet as a separate table.
             """
-            # TODO: Add handling for irregular Excel structures (e.g., merged headers)
+            # TODO: handle irregular Excel structures (e.g., merged headers)
             excel_file = pd.ExcelFile(file_source)
             table_schemas = []
             schema["name"] = file_name
@@ -434,18 +435,19 @@ class DashScopeMultiModalTools:
             elif suffix.lower() in [".xlsx", ".xls", ".xlsm"]:
                 schema = extract_excel(file_source, file_name)
             return schema
-        except Exception as e:
+        except Exception:
             import traceback
 
-            return f"Error processing file: {traceback.format_exc()}"
+            print(f"Error processing file: {traceback.format_exc()}")
+            return {}
 
     def _extract_schema_from_relational_database(self, dsn: str) -> dict:
         """
-        Connects to a relational database and extracts metadata (schema) for all tables.
+        Extracts metadata (schema) for all tables in a relational db.
 
         Args:
             dsn (str): The Database Source Name (connection string).
-            for example: postgresql://user:XB6FqqgHk26h@47.238.87.81:49166/dacomp_001
+            eg. postgresql://user:XB6FqqgHk26h@47.238.87.81:49166/dacomp_001
         Returns:
             dict: A JSON-compatible dictionary containing database metadata
                   (table names, columns, row counts, samples).
@@ -453,13 +455,13 @@ class DashScopeMultiModalTools:
 
         options = {
             "isolation_level": "AUTOCOMMIT",
-            # Test connections before use (handles MySQL 8hr timeout, network drops)
+            # Test conns before use (handles MySQL 8hr timeout, network drops)
             "pool_pre_ping": True,
-            # Keep minimal connections (MCP typically handles one request at a time)
+            # Keep minimal conns (MCP typically handles 1 request at a time)
             "pool_size": 1,
             # Allow temporary burst capacity for edge cases
             "max_overflow": 2,
-            # Force refresh connections older than 1hr (well under MySQL's 8hr default)
+            # Force refresh conns older than 1hr (under MySQL's 8hr default)
             "pool_recycle": 3600,
         }
         engine = create_engine(dsn, **options)
@@ -469,7 +471,7 @@ class DashScopeMultiModalTools:
             print(f"Connection to {dsn} failed: {e}")
             raise Exception(f"Failed to connect to database: {e}")
 
-        # Use DSN as the database identifier (could be parsed for a cleaner name)
+        # Use DSN as the db identifier (can parsed cleaner)
         database_name = dsn
         inspector = inspect(connection)
         table_names = inspector.get_table_names()
@@ -506,7 +508,7 @@ class DashScopeMultiModalTools:
                                 if value is None:
                                     row_values.append("NULL")
                                 else:
-                                    # Escape commas and newlines for CSV-like string representation
+                                    # Escape commas and newlines
                                     val_str = str(value)
                                     if "," in val_str or "\n" in val_str:
                                         val_str = f'"{val_str}"'
@@ -535,7 +537,7 @@ class DashScopeMultiModalTools:
                             {
                                 "column name": col_name,
                                 "data type": col_type,
-                                "data sample": sample_values[:3],  # 取前3个样例值
+                                "data sample": sample_values[:3],
                             },
                         )
 
@@ -552,6 +554,7 @@ class DashScopeMultiModalTools:
             except Exception as e:
                 # If one table fails, log it and continue to the next
                 print(f"Error processing {table_name}: {str(e)}")
+                return {}
         # Contruct the final schema
         schema = {
             "name": database_name,
@@ -561,14 +564,14 @@ class DashScopeMultiModalTools:
 
     def _llm_profile_by_content(self, content: str, model: str) -> dict:
         """
-        Uses an LLM to generate a summary/profile based on the provided content.
+        Uses an LLM to generate a profile based on the provided content.
 
         Args:
-            content (str): The text content (e.g., schema description) to analyze.
+            content (str): The text content (e.g., schema description).
             model (str): The model name to use for generation.
 
         Returns:
-            dict: The profiled metadata in dictionary format, parsed from the LLM response.
+            dict: The profiled metadata in dict format, parsed from LLM resp.
         """
         try:
             sys_message = {
@@ -590,18 +593,18 @@ class DashScopeMultiModalTools:
             # Clean and parse the JSON response from the LLM
             cleaned_response = _tool_clean_json(response)
             if isinstance(cleaned_response, list):
-                # Handle cases where the response might be a list wrapping a dict
+                # Handle cases where the resp might be a list wrapping a dict
                 cleaned_response = cleaned_response[0]["text"]
             return cleaned_response
 
-        except Exception as e:
+        except Exception:
             import traceback
 
             print(traceback.format_exc())
             # Consider returning None or an empty dict on failure
             return {}
 
-    def dashscope_data_to_text(
+    def dashscope_data_to_text_profile(
         self,
         path: str,
         prompt: str = "Describe the csv",
@@ -609,7 +612,8 @@ class DashScopeMultiModalTools:
         source_type: SourceType = SourceType.CSV,
     ) -> ToolResponse:
         """
-        Generates a textual description/profile for a data source (File or Database) using DashScope.
+        Generates a textual description/profile for
+        different data source (File or Database) using DashScope.
 
         This function orchestrates the process of:
         1. Extracting schema from the source (CSV, Excel, or DB).
@@ -619,9 +623,9 @@ class DashScopeMultiModalTools:
 
         Args:
             path (str): The file path or Database DSN.
-            prompt (str): The instruction for the LLM. Should contain `{schema}` placeholder.
+            prompt (str): The prompt, should contain `{schema}` placeholder.
             model (str): The DashScope model to use.
-            source_type (SourceType): The type of the data source (CSV, EXCEL, RELATIONAL_DB).
+            source_type (SourceType): The type, (CSV, EXCEL, RELATIONAL_DB).
 
         Returns:
             ToolResponse: Contains the generated data profile description.
@@ -629,7 +633,7 @@ class DashScopeMultiModalTools:
 
         def wrap_repsonse_into_schema(schema: dict, response: dict) -> dict:
             """
-            Merges the original schema structure with the LLM-generated description.
+            Merges the original schema with the LLM-generated response.
             """
             new_schema = {}
             new_schema["name"] = schema["name"]
@@ -637,12 +641,13 @@ class DashScopeMultiModalTools:
             #  # For flat files like CSV, they contain columns
             if "columns" in schema:
                 new_schema["columns"] = schema["columns"]
-            # # For multi-table sources like Excel/Database, they contain tables. Each table contains columns and description
+            # # For multi-table sources like Excel/Database,
+            # they contain tables. Each table contains columns and description
             if "tables" in schema and "tables" in response:
                 new_schema["tables"] = []
                 for i, table in enumerate(schema["tables"]):
-                    # Ensure alignment between schema tables and response tables
-                    # Note: This relies on order; matching by name would be more robust.
+                    # Ensure alignment between schema tables and resp tables
+                    # TODO: It matches by order, by name would be more robust.
                     assert response["tables"][i]["name"] == table["name"]
                     new_table = {}
                     new_table["name"] = table["name"]
@@ -660,10 +665,10 @@ class DashScopeMultiModalTools:
             schema = self._extract_schema_from_relational_database(path)
 
         # 2. Prepare Prompt
-        # TODO: Handle cases where schema extraction failed (schema is string error or empty)
         content = prompt.format(schema=schema)
         # 3. LLM Generation
-        # TODO: verify whether the schema is valid, like headerless csv or irregular excel, using LLM.
+        # TODO: verify whether the schema is valid,
+        # like headerless csv or irregular excel, using LLM.
         # response = self._llm_verify_by_schema(content, model)
         response = self._llm_profile_by_content(content, model)
         # 4. Merge and Return
