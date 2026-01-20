@@ -16,6 +16,5 @@ __all__ = [
     "get_prompt_from_file",
     "set_run_ipython_cell",
     "add_ds_specific_tool",
-    "LLMPromptSelector",
     "files_filter_pre_reply_hook",
 ]

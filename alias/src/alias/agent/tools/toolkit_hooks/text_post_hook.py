@@ -19,9 +19,10 @@ class TextPostHook:
         """
         Args:
             sandbox: The sandbox environment for file operations.
-            budget: Maximum character count before truncation (default: 81,940).
-                    Approximately 20K tokens for English text or 160K tokens
-                    for Chinese text. Adjust based on your model's context window.
+            budget: Maximum character count before truncation
+                    (default: 81,940). Approximately 20K tokens for English
+                    text or 160K tokens for Chinese text. Adjust based on
+                    your model's context window.
             auto_save: Whether to save complete content to file when truncated.
                     - False: Save only after being truncated (default)
                     - True: Save complete content to file
@@ -39,9 +40,9 @@ class TextPostHook:
 
         This function ensures that tool responses don't exceed a predefined
         budget to prevent overwhelming the model with too much information.
-        It truncates text content while preserving the structure of the response,
-        and optionally saves the complete content to a file based on the auto_save
-        setting.
+        It truncates text content while preserving the structure of the
+        response, and optionally saves the complete content to a file based on
+        the auto_save setting.
 
         Args:
             tool_use: The tool use block that triggered the response (unused).
@@ -114,7 +115,7 @@ class TextPostHook:
                 )
 
                 if is_truncated:
-                    # Calculate truncation threshold (80% of proportional budget)
+                    # Calculate truncation threshold (80% of budget)
                     threshold = int(budget / text_len * len(text) * 0.8)
                     tool_response.content = [
                         TextBlock(
@@ -137,7 +138,7 @@ class TextPostHook:
         self,
         save_file_name_prefix: str,
         content: list | str,
-        is_truncated: True,
+        is_truncated: bool,
     ):
         create_workspace_directory(self.sandbox, TMP_FILE_DIR)
         save_file_name = (

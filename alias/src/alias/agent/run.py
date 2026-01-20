@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 # pylint: disable=W0612,E0611,C2801
+
 import os
-import traceback
+
 from datetime import datetime
 import asyncio
+import traceback
 from typing import Literal
 
 from loguru import logger
@@ -20,22 +22,9 @@ from alias.agent.agents import (
     init_dr_toolkit,
 )
 
-if os.getenv("DSA_VERSION") == "PY_FILE":
-    from alias.agent.agents._data_science_agent_v2 import (
-        DataScienceAgent,
-        init_ds_toolkit,
-    )
-else:
-    from alias.agent.agents._data_science_agent import (
-        DataScienceAgent,
-        init_ds_toolkit,
-    )
-
-
 from alias.agent.agents.meta_planner_utils._worker_manager import share_tools
 from alias.agent.mock import MockSessionService as SessionService
 from alias.agent.tools import AliasToolkit
-
 from alias.agent.utils.constants import (
     BROWSER_AGENT_DESCRIPTION,
     DEFAULT_DEEP_RESEARCH_AGENT_NAME,
@@ -46,10 +35,20 @@ from alias.agent.utils.prepare_data_source import (
     add_data_source_tools,
     prepare_data_sources,
 )
-
 from alias.agent.tools.add_tools import add_tools
 from alias.agent.memory.longterm_memory import AliasLongTermMemory
 from alias.server.clients.memory_client import MemoryClient
+
+if os.getenv("DSA_VERSION") == "PY_FILE":
+    from alias.agent.agents._data_science_agent_v2 import (
+        DataScienceAgent,
+        init_ds_toolkit,
+    )
+else:
+    from alias.agent.agents._data_science_agent import (
+        DataScienceAgent,
+        init_ds_toolkit,
+    )
 
 
 MODEL_FORMATTER_MAPPING = {
@@ -359,7 +358,9 @@ async def arun_datascience_agent(
     global_toolkit = AliasToolkit(sandbox, add_all=True)
     worker_toolkit = init_ds_toolkit(global_toolkit)
     data_manager = await prepare_data_sources(
-        session_service, sandbox, worker_toolkit
+        session_service,
+        sandbox,
+        worker_toolkit,
     )
 
     try:

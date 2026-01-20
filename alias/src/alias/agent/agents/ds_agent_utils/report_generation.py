@@ -102,7 +102,7 @@ class ReportGenerator:
         print(f"Convert to html took {end_time - start_time} seconds")
         return response.content[0]["text"]
 
-    async def generate_report(self) -> Tuple[str, str]:
+    async def generate_report(self) -> Tuple[str, str, str]:
         markdown_response = await self._log_to_markdown()
 
         #  responseFormat: {

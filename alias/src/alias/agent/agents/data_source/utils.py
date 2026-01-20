@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
 
-from typing import List
-
 # Set up logger
 logger = logging.getLogger(__name__)
 

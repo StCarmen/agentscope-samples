@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 import os
 
+from agentscope_runtime.sandbox.box.sandbox import Sandbox
+
 from alias.agent.agents.data_source.data_source import DataSourceManager
 from alias.agent.tools import AliasToolkit, share_tools
-from agentscope_runtime.sandbox.box.sandbox import Sandbox
 
 if os.getenv("TEST_MODE") not in ["local", "runtime-test"]:
     from alias.server.services.session_service import (
@@ -29,7 +30,8 @@ async def prepare_data_sources(
 
 
 async def build_data_manager(
-    session_service: SessionService, sandbox: Sandbox
+    session_service: SessionService,
+    sandbox: Sandbox,
 ):
     data_manager = DataSourceManager(sandbox)
     if (
@@ -45,7 +47,8 @@ async def build_data_manager(
 
 
 def add_data_source_tools(
-    data_manager: DataSourceManager, *toolkits: AliasToolkit
+    data_manager: DataSourceManager,
+    *toolkits: AliasToolkit,
 ):
     data_source_toolkit = data_manager.toolkit
     tool_names = list(data_source_toolkit.tools.keys())
@@ -65,7 +68,6 @@ async def add_user_data_message(
 def get_data_source_config_from_file(config_file: str):
     """Load and parse data source configuration from a JSON file."""
     import json
-    import os
 
     # Validate file existence upfront
     if not os.path.isfile(config_file):
@@ -76,5 +78,6 @@ def get_data_source_config_from_file(config_file: str):
             return json.load(f)
     except json.JSONDecodeError as e:
         raise ValueError(
-            f"Invalid JSON in data source configuration file `'{config_file}'`: {e.msg} at line {e.lineno}",
+            f"Invalid JSON in data source configuration file `'{config_file}'`\
+                : {e.msg} at line {e.lineno}",
         ) from e

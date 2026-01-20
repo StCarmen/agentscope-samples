@@ -9,12 +9,10 @@ for the Alias agent application.
 """
 import argparse
 import asyncio
-import os
 import signal
 import sys
 import traceback
 import webbrowser
-from typing import Optional
 
 from loguru import logger
 
@@ -63,7 +61,7 @@ def _safe_sigint_handler(signum, frame):  # pylint: disable=W0613
 async def run_agent_task(
     user_msg: str,
     mode: str = "general",
-    user_data_config: list = [],
+    user_data_config: list | None = None,
     use_long_term_memory_service: bool = False,
 ) -> None:
     """
@@ -72,7 +70,8 @@ async def run_agent_task(
     Args:
         user_msg: The user's task/query
         mode: Agent mode ('general', 'dr', 'ds', 'browser', 'finance')
-        user_data: (Config for) User data sources, used for data science agent only
+        user_data: (Config for) User data sources, used for data science \
+                    agent only
         use_long_term_memory_service: Enable long-term memory service.
     """
     global _original_sigint_handler

@@ -40,7 +40,7 @@ class SessionEntity:
     query: str
     upload_files: List = []
     is_chat: bool = False
-    data_config: List = []
+    data_config: List | None = None
     use_long_term_memory_service: bool = False
 
     def __init__(
@@ -52,7 +52,7 @@ class SessionEntity:
             "bi",
             "finance",
         ] = "general",
-        data_config: list = [],
+        data_config: List | None = None,
         use_long_term_memory_service: bool = False,
     ):
         self.user_id: uuid.UUID = uuid.UUID(
@@ -82,7 +82,7 @@ class MockSessionService:
     def __init__(
         self,
         runtime_model: Any = None,
-        data_config: List = [],
+        data_config: List | None = None,
         use_long_term_memory_service: bool = False,
     ):
         self.session_id = "mock_session"

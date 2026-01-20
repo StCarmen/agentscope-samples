@@ -38,6 +38,7 @@ class SourceType(str, Enum):
     def __str__(self):
         return self.value
 
+    @staticmethod
     def is_valid_source_type(value: str) -> bool:
         try:
             SourceType(value)

@@ -1,26 +1,30 @@
 # -*- coding: utf-8 -*-
+# pylint: disable=R1702,R0912,R0911
+
 import os
 import json
-from pathlib import Path
 
-from loguru import logger
+from pathlib import Path
 from typing import Dict, Any, Optional, List
+
 import yaml
 
+from loguru import logger
+
 from agentscope.mcp import StdIOStatefulClient
+from agentscope_runtime.sandbox.box.sandbox import Sandbox
+
 from alias.agent.agents.data_source.data_skill import DataSkillManager
 from alias.agent.agents.data_source._typing import (
     SOURCE_TYPE_TO_ACCESS_TYPE,
     SourceAccessType,
     SourceType,
 )
+
+from alias.agent.agents.data_source.data_profile import data_profile
 from alias.agent.agents.data_source.utils import replace_placeholders
 from alias.agent.tools.toolkit_hooks.text_post_hook import TextPostHook
 from alias.agent.tools.alias_toolkit import AliasToolkit
-from alias.agent.agents.data_source.data_profile import data_profile
-
-from agentscope_runtime.sandbox.box.sandbox import Sandbox
-
 from alias.agent.tools.sandbox_util import (
     copy_local_file_to_workspace,
 )
@@ -42,7 +46,8 @@ class DataSource:
         Initialize a data source.
 
         Args:
-            source_access_type: Type of the data source access (SourceAccessType enum)
+            source_access_type: Type of the data source access \
+                (SourceAccessType enum)
             source_type: Type of the data source (SourceType enum)
             name: Name/identifier of the data source
             endpoint: Address/DNS/URL/path to access the data source
@@ -55,7 +60,7 @@ class DataSource:
 
         source_access_type = SOURCE_TYPE_TO_ACCESS_TYPE.get(source_type)
         if source_access_type is None:
-            raise ValueError(f"Invalid access type")
+            raise ValueError("Invalid access type")
 
         self.source_access_type = source_access_type
         self.source_type = source_type
@@ -111,7 +116,7 @@ class DataSource:
             mcp_server_name = server_config.keys()
 
             if len(mcp_server_name) != 1:
-                raise ValueError(f"Register server one by one!")
+                raise ValueError("Register server one by one!")
 
             self.source_access = self.endpoint
             self.profile = self._get_profile(toolkit.sandbox)
@@ -175,18 +180,14 @@ class DataSource:
                     self.profile = raw_profile.content[0]["text"]
                 else:
                     print(
-                        f"Unsupported source type in data profile {self.source_type}",
+                        "Unsupported source type in data profile "
+                        f"{self.source_type}",
                     )
                     self.profile = {}
             except Exception as e:
                 self.profile = {}
                 logger.error(f"Error when profile data: {e}")
 
-        # with open(f'./logs/{os.path.basename(self.endpoint)}.yaml', 'w', encoding='utf-8') as f:
-        #     if SourceType.IMAGE == self.source_type:
-        #         yaml.dump(self.profile, f, allow_unicode=True, sort_keys=False, default_flow_style=False, width=float("inf")) # for image
-        #     else:
-        #         yaml.dump(self.profile, f, allow_unicode=True, sort_keys=False, default_flow_style=None, width=float("inf")) # for csv/excel/db
         return self.profile
 
     def _refined_profile(self) -> str:
@@ -207,7 +208,10 @@ class DataSource:
         return self.profile["description"] if self.profile else ""
 
     def __str__(self) -> str:
-        return f"DataSource(name='{self.name}', type='{self.source_type}', endpoint='{self.endpoint}')"
+        return (
+            f"DataSource(name='{self.name}', type='{self.source_type}', "
+            f"endpoint='{self.endpoint}')"
+        )
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -245,7 +249,8 @@ class DataSourceManager:
         Add a new data source (or multiple sources) to the manager.
 
         Args:
-            config: endpoint(Address/DNS/URL/path to the data source) or configuration for data source conection
+            config: endpoint(Address/DNS/URL/path to the data source) or
+                    configuration for data source conection
         """
 
         if isinstance(config, str):
@@ -297,7 +302,8 @@ class DataSourceManager:
         Prepare all data sources.
 
         Args:
-            sandbox: Optional sandbox instance for file uploads and startup MCP servers
+            sandbox: Optional sandbox instance for file uploads and startup \
+                MCP servers
         """
         logger.info(f"Preparing {len(self._data_sources)} data source(s)...")
 
@@ -308,11 +314,10 @@ class DataSourceManager:
     def _generate_name(self, endpoint: str) -> str:
         """
         Generate an name based on the endpoint.
-        For database connections, removes passwords and uses scheme + database name.
+        For databases, removes passwords and uses scheme + database name.
         For files, uses filename.
         For URLs, uses domain or last part of path.
         """
-        import re
         from urllib.parse import urlparse
 
         try:
@@ -354,7 +359,8 @@ class DataSourceManager:
                         # Extract database name
                         db_name = "unknown"
                         if "/" in rest:
-                            # Split by / and take last part before query parameters
+                            # Split by / and take last part before
+                            # query parameters
                             path_parts = rest.split("/")
                             if len(path_parts) > 1:
                                 db_name = (
@@ -505,7 +511,7 @@ class DataSourceManager:
 
         return source_type
 
-    def get_all_data_sources_desc(self) -> List[str]:
+    def get_all_data_sources_desc(self) -> str:
         """
         Get descriptions of all data sources.
 

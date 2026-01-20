@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
 """Data Science Agent"""
 import asyncio
-import json
 import os
-from functools import partial
-from typing import List, Dict, Optional, Any, Type, Literal
+from typing import Optional, Any, Type, Literal, cast
 import uuid
 
 from agentscope.formatter import FormatterBase
@@ -89,12 +87,15 @@ class DataScienceAgent(AliasAgentBase):
         self.tmp_file_storage_dir = tmp_file_storage_dir
 
         self._sys_prompt = (
-            get_prompt_from_file(
-                os.path.join(
-                    PROMPT_DS_BASE_PATH,
-                    "_agent_system_workflow_prompt_v2.md",
+            cast(
+                str,
+                get_prompt_from_file(
+                    os.path.join(
+                        PROMPT_DS_BASE_PATH,
+                        "_agent_system_workflow_prompt_v2.md",
+                    ),
+                    False,
                 ),
-                False,
             )
             + "\n\n"
             + sys_prompt
@@ -468,24 +469,6 @@ class DataScienceAgent(AliasAgentBase):
             is_last=True,
         )
 
-    async def _load_scenario_prompts(self):
-        if self.prompt_selector is None or self._selected_scenario_prompts:
-            return self._selected_scenario_prompts
-
-        user_input = (await self.memory.get_memory())[0].content[0]["text"]
-
-        selected_scenarios = await self.prompt_selector.select(user_input)
-
-        # concat selected scenario prompts
-        scenario_contents = []
-        if selected_scenarios:
-            for scenario in selected_scenarios:
-                content = self.prompt_selector.get_prompt_by_scenario(scenario)
-                scenario_contents.append(content)
-
-        self._selected_scenario_prompts = "\n\n".join(scenario_contents)
-        return self._selected_scenario_prompts
-
     def think(self, response: str):
         """
         Invoke this function whenever you need to
@@ -536,7 +519,7 @@ class DataScienceAgent(AliasAgentBase):
                 )
 
     def prepare_task_skill_data(self):
-        target_path_base = f"/workspace/skills/"
+        target_path_base = "/workspace/skills/"
 
         for _, skill in self.toolkit.skills.items():
             # Get the base directory name
@@ -564,7 +547,8 @@ class DataScienceAgent(AliasAgentBase):
                         target_dir_path,
                     )
                     logger.info(
-                        f"Uploading file {source_file_path} to {target_file_path}",
+                        f"Uploading file {source_file_path} to \
+                            {target_file_path}",
                     )
                     result = copy_local_file_to_workspace(
                         sandbox=self.toolkit.sandbox,

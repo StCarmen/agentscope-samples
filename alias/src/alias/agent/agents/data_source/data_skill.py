@@ -1,15 +1,16 @@
 # -*- coding: utf-8 -*-
 import os
-from pathlib import Path
-from alias.agent.agents.data_source._typing import SourceType
-import frontmatter
 
+from pathlib import Path
 from typing import List
+
+import frontmatter
 from loguru import logger
 
 from agentscope.tool._types import AgentSkill
 
 from alias.agent.agents.ds_agent_utils.utils import get_prompt_from_file
+from alias.agent.agents.data_source._typing import SourceType
 
 
 class DataSkill(AgentSkill):
@@ -60,9 +61,9 @@ class DataSkillManager:
                 # Skip if no corresponding skill
                 if not skill:
                     logger.warning(
-                        f"DataSkillSelector found no valid skill for data source type: {source_type}",
+                        "DataSkillSelector found no valid skill for data "
+                        f"source type: {source_type}",
                     )
-                    continue
                 else:
                     logger.info(
                         f"DataSkillSelector selected skill: {skill['name']} "
@@ -85,19 +86,19 @@ class DataSkillManager:
 
         return selected_skills
 
-    def register_skill_dir(self, dir=_default_skill_path_base):
+    def register_skill_dir(self, skill_dir=_default_skill_path_base):
         """Load skills from all directories containing SKILL.md"""
 
         skills = []
         # Check the skill directory
-        if not os.path.isdir(dir):
+        if not os.path.isdir(skill_dir):
             raise ValueError(
-                f"The skill directory '{dir}' does not exist or is "
+                f"The skill directory '{skill_dir}' does not exist or is "
                 "not a directory.",
             )
 
         # Walk through all files and directories in skill_dir_base
-        for root, dirs, _ in os.walk(dir):
+        for root, dirs, _ in os.walk(skill_dir):
             # Process directories - look for SKILL.md
             for dir_name in dirs:
                 dir_path = os.path.join(root, dir_name)
@@ -124,14 +125,16 @@ class DataSkillManager:
             # Parse the skill file
             skill = self._parse_skill_file(file_path, name)
             logger.info(
-                f"Successfully registered skill '{skill['name']}' from '{file_path}'",
+                f"Successfully registered skill '{skill['name']}' "
+                f"from '{file_path}'",
             )
 
             return skill
 
         except Exception as e:
             logger.error(
-                f"Failed to register skill '{skill['name']}' from '{path}': {e}",
+                f"Failed to register skill '{skill['name']}' from "
+                f"'{path}': {e}",
             )
             return None
 
@@ -178,9 +181,10 @@ class DataSkillManager:
             )
 
         _type = _type if isinstance(_type, list) else [_type]
-        if any([not SourceType.is_valid_source_type(t) for t in _type]):
+        if any(not SourceType.is_valid_source_type(t) for t in _type):
             raise ValueError(
-                f"Type of file '{file_path}' must be a member (or a list of members) of SourceType",
+                f"Type of file '{file_path}' must be a member "
+                "(or a list of members) of SourceType",
             )
 
         name, description = str(name), str(description)
