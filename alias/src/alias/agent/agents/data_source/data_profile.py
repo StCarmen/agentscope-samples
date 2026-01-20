@@ -4,13 +4,13 @@ from agentscope.tool import ToolResponse
 from alias.agent.agents.ds_agent_utils import get_prompt_from_file
 from alias.agent.agents.data_source._typing import SourceType
 from alias.agent.agents.ds_agent_utils.ds_config import (
-    PROMPT_DS_BASE_PATH,
     MODEL_CONFIG_NAME,
     VL_MODEL_NAME,
 )
-from alias.agent.tools.improved_tools.multimodal_to_text import (
+from alias.agent.agents.data_source._multimodal_to_text import (
     DashScopeMultiModalTools,
 )
+
 from alias.runtime.alias_sandbox.alias_sandbox import AliasSandbox
 
 
@@ -40,7 +40,10 @@ def data_profile(
     Raises:
         ValueError: If the provided `source_type` is not supported.
     """
-
+    PROFILE_PROMPT_BASE_PATH = os.path.join(
+        os.path.dirname(__file__),
+        "built_in_prompt",
+    )
     # 1. Initialize the DashScope Multi-Modal Tool wrapper
     # Requires the API key from environment variables
     dash_scope_multimodal_tool_set = DashScopeMultiModalTools(
@@ -65,7 +68,7 @@ def data_profile(
         # Load the specific prompt for structured data profiling
         summary_prompt = get_prompt_from_file(
             os.path.join(
-                PROMPT_DS_BASE_PATH,
+                PROFILE_PROMPT_BASE_PATH,
                 profile_prompts[source_type],
             ),
             False,
@@ -82,7 +85,7 @@ def data_profile(
         # Load the specific prompt for image analysis
         summary_prompt = get_prompt_from_file(
             os.path.join(
-                PROMPT_DS_BASE_PATH,
+                PROFILE_PROMPT_BASE_PATH,
                 "_profile_image_prompt.md",
             ),
             False,

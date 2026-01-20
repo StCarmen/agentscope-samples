@@ -95,6 +95,9 @@ class DataSource:
             if result.get("isError"):
                 raise ValueError(f"Failed to upload {self.endpoint}: {result}")
 
+            self.source_access = target_path
+            self.profile = self._get_profile(toolkit.sandbox)
+
             self.source_desc = "Local file"
             self.source_access_desc = f"Access at path: `{target_path}`"
 
@@ -107,6 +110,9 @@ class DataSource:
 
             if len(mcp_server_name) != 1:
                 raise ValueError(f"Register server one by one!")
+
+            self.source_access = self.endpoint
+            self.profile = self._get_profile(toolkit.sandbox)
 
             mcp_server_name = list(mcp_server_name)[0]
             server_config = server_config[mcp_server_name]
@@ -158,12 +164,11 @@ class DataSource:
                     self.source_type,
                 )
 
-                if self.source_type == SourceType.IMAGE:
-                    self.profile = raw_profile.content[0]["text"]
-                elif self.source_type in [
+                if self.source_type in [
                     SourceType.CSV,
                     SourceType.EXCEL,
                     SourceType.RELATIONAL_DB,
+                    SourceType.IMAGE,
                 ]:
                     self.profile = raw_profile.content[0]["text"]
                 else:
@@ -175,6 +180,11 @@ class DataSource:
                 self.profile = {}
                 logger.error(f"Error when profile data: {e}")
 
+        # with open(f'./logs/{os.path.basename(self.endpoint)}.yaml', 'w', encoding='utf-8') as f:
+        #     if SourceType.IMAGE == self.source_type:
+        #         yaml.dump(self.profile, f, allow_unicode=True, sort_keys=False, default_flow_style=False, width=float("inf")) # for image
+        #     else:
+        #         yaml.dump(self.profile, f, allow_unicode=True, sort_keys=False, default_flow_style=None, width=float("inf")) # for csv/excel/db
         return self.profile
 
     def _refined_profile(self) -> str:
@@ -183,7 +193,9 @@ class DataSource:
                 self.profile,
                 allow_unicode=True,
                 sort_keys=False,
-                default_flow_style=None,
+                default_flow_style=False
+                if self.source_type == SourceType.IMAGE
+                else None,
                 width=float("inf"),
             )
         else:
