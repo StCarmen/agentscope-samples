@@ -82,25 +82,34 @@ class DataSource:
 
         logger.info(f"Preparing data source {self.name}...")
 
-        if (
-            self.source_access_type == SourceAccessType.LOCAL_FILE
-            and os.path.exists(
-                self.endpoint,
-            )
-        ):
+        if self.source_access_type == SourceAccessType.LOCAL_FILE:
             # Get the filename and construct target path in workspace
             filename = os.path.basename(self.endpoint)
             target_path = f"/workspace/{filename}"
-
-            logger.info(f"Uploading {self.endpoint} to {target_path}")
-            result = copy_local_file_to_workspace(
-                sandbox=toolkit.sandbox,
-                local_path=self.endpoint,
-                target_path=target_path,
-            )
-
-            if result.get("isError"):
-                raise ValueError(f"Failed to upload {self.endpoint}: {result}")
+            
+            if os.getenv("LINK_FILE_TO_WORKSPACE", "off").lower() == "on":
+                logger.info(f"Creating symlink for {self.endpoint} "
+                            f"to {target_path}")
+                # Build ln -s command
+                command = f"ln -s '{self.endpoint}' '{target_path}'"
+                result = toolkit.sandbox.call_tool(
+                    name="run_shell_command",
+                    arguments={"command": command}
+                )
+                if result.get("isError"):
+                    raise ValueError("Failed to create symlink for "
+                                     f"{self.endpoint}: {result}")
+            else:
+                logger.info(f"Uploading {self.endpoint} to {target_path}")
+                result = copy_local_file_to_workspace(
+                    sandbox=toolkit.sandbox,
+                    local_path=self.endpoint,
+                    target_path=target_path,
+                )
+                
+                if result.get("isError"):
+                    raise ValueError(f"Failed to upload {self.endpoint}: "
+                                     f"{result}")
 
             self.source_access = target_path
             self.profile = self._get_profile(toolkit.sandbox)
@@ -322,7 +331,7 @@ class DataSourceManager:
 
         try:
             # For file paths
-            if os.path.exists(endpoint) and os.path.isfile(endpoint):
+            if os.path.isfile(endpoint):
                 filename = os.path.basename(endpoint)
                 # Remove extension and sanitize
                 name_without_ext = os.path.splitext(filename)[0]

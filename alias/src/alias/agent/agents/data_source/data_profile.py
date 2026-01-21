@@ -20,22 +20,26 @@ def data_profile(
     source_type: SourceType,
 ) -> ToolResponse:
     """
-    Generates a detailed profile and summary for a specified data source using Large Language Models.
+    Generates a detailed profile and summary for a specified data source
+    using Large Language Models.
 
     This function acts as a dispatcher that:
     1. Initializes the DashScope toolset.
     2. Selects the appropriate prompt template based on the source type.
-    3. Delegates the profiling task to the specific multimodal tool method (text or image).
+    3. Delegates the profiling task to the specific multimodal tool method
+       (text or image).
 
     Args:
-        sandbox (AliasSandbox): The sandbox environment instance where file operations occur.
+        sandbox (AliasSandbox): The sandbox environment instance where file
+                                operations occur.
         path (str): The location of the data source.
-                    - For files: A file path (e.g., '/workspace/data.csv') or URL.
+                    - For files: A path (e.g., '/workspace/data.csv').
                     - For databases: A connection string (DSN).
-        source_type (SourceType): The type of the data source (CSV, EXCEL, IMAGE, or RELATIONAL_DB).
+        source_type (SourceType): The type of the data source (CSV, EXCEL,
+                                  IMAGE, or RELATIONAL_DB).
 
     Returns:
-        ToolResponse: An object containing the generated text profile of the data.
+        ToolResponse: An object containing the generated profile of the data.
 
     Raises:
         ValueError: If the provided `source_type` is not supported.

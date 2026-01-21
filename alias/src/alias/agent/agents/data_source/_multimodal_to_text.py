@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
+# pylint: disable=R1702,R0912,R0915,R1702
+
 from io import BytesIO
 import os
 import base64
 import json
 import tempfile
-from alias.agent.agents.data_source._typing import SourceType
+
 import requests
 import dashscope
 import pandas as pd
@@ -12,9 +14,8 @@ from agentscope.tool import ToolResponse
 from agentscope.message import TextBlock
 from sqlalchemy import inspect, text, create_engine
 
-from alias.agent.tools.sandbox_util import (
-    get_workspace_file,
-)
+from alias.agent.agents.data_source._typing import SourceType
+from alias.agent.tools.sandbox_util import get_workspace_file
 from alias.runtime.alias_sandbox import AliasSandbox
 
 
@@ -469,7 +470,7 @@ class DashScopeProfile:
             connection = engine.connect()
         except Exception as e:
             print(f"Connection to {dsn} failed: {e}")
-            raise Exception(f"Failed to connect to database: {e}")
+            raise ConnectionError(f"Failed to connect to database: {e}") from e
 
         # Use DSN as the db identifier (can parsed cleaner)
         database_name = dsn
