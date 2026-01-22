@@ -24,7 +24,10 @@ from alias.agent.agents.common_agent_utils import (
     get_user_input_to_mem_pre_reply_hook,
 )
 
-from alias.agent.agents.ds_agent_utils.prompt_selector.llm_prompt_selector import LLMPromptSelector
+from alias.agent.agents.ds_agent_utils.prompt_selector.llm_prompt_selector import (  # noqa: E501
+    LLMPromptSelector,
+)
+
 from alias.agent.agents.ds_agent_utils.utils import set_workspace_dir
 from .ds_agent_utils import (
     ReportGenerator,
@@ -40,7 +43,7 @@ class DefaultStructuredResponse(BaseModel):
         description="Just a placeholder. "
         "Enter any character to trigger report generation",
     )
-    
+
 
 class DataScienceAgent(AliasAgentBase):
     def __init__(
@@ -75,7 +78,7 @@ class DataScienceAgent(AliasAgentBase):
         self.uploaded_files: List[str] = []
 
         self.tmp_file_storage_dir = tmp_file_storage_dir
-        
+
         self._sys_prompt = get_prompt_from_file(
             os.path.join(
                 PROMPT_DS_BASE_PATH,
@@ -148,9 +151,7 @@ class DataScienceAgent(AliasAgentBase):
     def sys_prompt(self) -> str:
         base_prompt = self._sys_prompt
 
-        return (
-            f"{base_prompt}{self._selected_scenario_prompts}"
-        )
+        return f"{base_prompt}{self._selected_scenario_prompts}"
 
     @trace_reply
     async def reply(
@@ -508,7 +509,6 @@ class DataScienceAgent(AliasAgentBase):
 
         self._selected_scenario_prompts = "\n\n".join(scenario_contents)
         return self._selected_scenario_prompts
-
 
     def think(self, response: str):
         """

@@ -96,6 +96,7 @@ def set_run_ipython_cell(sandbox):
         sandbox.call_tool("run_ipython_cell", {"code": summarize_chart_code}),
     )
 
+
 def set_workspace_dir(sandbox):
     # Clear all previous variables and imports
     print(

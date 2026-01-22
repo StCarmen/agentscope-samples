@@ -32,9 +32,6 @@ from alias.agent.utils.constants import (
     DS_AGENT_DESCRIPTION,
 )
 from alias.agent.tools.add_tools import add_tools
-from alias.agent.agents.ds_agent_utils import (
-    add_ds_specific_tool,
-)
 from alias.agent.memory.longterm_memory import AliasLongTermMemory
 from alias.server.clients.memory_client import MemoryClient
 
@@ -327,10 +324,10 @@ async def arun_datascience_agent(
     sandbox: Sandbox = None,
 ):
     model, formatter = MODEL_FORMATTER_MAPPING[MODEL_CONFIG_NAME]
-    
+
     global_toolkit = AliasToolkit(sandbox, add_all=True)
     worker_toolkit = init_ds_toolkit(global_toolkit)
-    
+
     try:
         worker_agent = DataScienceAgent(
             name="Data_Science_Agent",
