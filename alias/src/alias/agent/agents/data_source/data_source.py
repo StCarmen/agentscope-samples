@@ -82,23 +82,27 @@ class DataSource:
 
         logger.info(f"Preparing data source {self.name}...")
 
-        if self.source_access_type == SourceAccessType.LOCAL_FILE:
+        if self.source_access_type == SourceAccessType.DIRECT:
             # Get the filename and construct target path in workspace
             filename = os.path.basename(self.endpoint)
             target_path = f"/workspace/{filename}"
-            
+
             if os.getenv("LINK_FILE_TO_WORKSPACE", "off").lower() == "on":
-                logger.info(f"Creating symlink for {self.endpoint} "
-                            f"to {target_path}")
+                logger.info(
+                    f"Creating symlink for {self.endpoint} "
+                    f"to {target_path}",
+                )
                 # Build ln -s command
                 command = f"ln -s '{self.endpoint}' '{target_path}'"
                 result = toolkit.sandbox.call_tool(
                     name="run_shell_command",
-                    arguments={"command": command}
+                    arguments={"command": command},
                 )
                 if result.get("isError"):
-                    raise ValueError("Failed to create symlink for "
-                                     f"{self.endpoint}: {result}")
+                    raise ValueError(
+                        "Failed to create symlink for "
+                        f"{self.endpoint}: {result}",
+                    )
             else:
                 logger.info(f"Uploading {self.endpoint} to {target_path}")
                 result = copy_local_file_to_workspace(
@@ -106,10 +110,11 @@ class DataSource:
                     local_path=self.endpoint,
                     target_path=target_path,
                 )
-                
+
                 if result.get("isError"):
-                    raise ValueError(f"Failed to upload {self.endpoint}: "
-                                     f"{result}")
+                    raise ValueError(
+                        f"Failed to upload {self.endpoint}: " f"{result}",
+                    )
 
             self.source_access = target_path
             self.profile = self._get_profile(toolkit.sandbox)
@@ -120,7 +125,7 @@ class DataSource:
             logger.info(f"Successfully loaded to {result}")
 
         # Check if this is an MCP tool source
-        elif self.source_access_type == SourceAccessType.MCP_TOOL:
+        elif self.source_access_type == SourceAccessType.VIA_MCP:
             server_config = self.config.get("mcp_server", {})
             mcp_server_name = server_config.keys()
 
@@ -470,8 +475,6 @@ class DataSourceManager:
             (".jpg", ".jpeg", ".png", ".gif", ".bmp"),
         ):
             source_type = SourceType.IMAGE
-        elif endpoint_lower.endswith(".pdf"):
-            source_type = SourceType.PDF
 
         # Check for database connection strings/patterns
         # Relational databases
@@ -484,8 +487,6 @@ class DataSourceManager:
                 "mysql://",
                 "mariadb://",
                 "sqlserver://",
-                "mssql://",
-                "tds://",
             ]
         ):
             source_type = SourceType.RELATIONAL_DB
@@ -496,27 +497,8 @@ class DataSourceManager:
         ):
             source_type = SourceType.RELATIONAL_DB
 
-        # Document databases
-        elif (
-            "mongodb://" in endpoint_lower
-            or "mongodb+srv://" in endpoint_lower
-        ):
-            source_type = SourceType.DOCUMENT_DB
-
-        # Graph databases
-        elif "neo4j://" in endpoint_lower or "bolt://" in endpoint_lower:
-            source_type = SourceType.GRAPH_DB
-
-        # Check for URL patterns
-        elif endpoint_lower.startswith(("http://", "https://")):
-            if "api" in endpoint_lower or "/api/" in endpoint_lower:
-                source_type = SourceType.API
-            else:
-                source_type = SourceType.API  # Default to API for URLs
-
-        # Default to text for unknown types
         else:
-            source_type = SourceType.TEXT
+            source_type = SourceType.OTHER
 
         return source_type
 
@@ -542,17 +524,17 @@ class DataSourceManager:
         return [
             ds.endpoint
             for ds in self._data_sources.values()
-            if ds.source_access_type == SourceAccessType.LOCAL_FILE
+            if ds.source_access_type == SourceAccessType.DIRECT
         ]
 
-    def get_all_data_sources_name(self) -> List[DataSource]:
+    def get_all_data_sources_name(self) -> List[str]:
         """
-        Get a list of all data sources.
+        Get a list of all data source names.
 
         Returns:
-            List of all DataSource objects
+            List of all data source names
         """
-        return list(self._data_sources.names())
+        return list(self._data_sources.keys())
 
     def remove_data_source(self, name: str) -> bool:
         """
