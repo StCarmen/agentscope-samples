@@ -104,7 +104,7 @@ async def arun_meta_planner(
     # Init deep research toolkit
     deep_research_toolkit = init_dr_toolkit(worker_full_toolkit)
 
-    # Init BI agent toolkit
+    # Init data science agent toolkit
     ds_toolkit = init_ds_toolkit(worker_full_toolkit)
 
     try:
@@ -175,7 +175,7 @@ async def arun_meta_planner(
             description=DEEPRESEARCH_AGENT_DESCRIPTION,
             worker_type="built-in",
         )
-        # === add BI agent ===
+        # === add data science agent ===
         ds_agent = DataScienceAgent(
             name="Data_Science_Agent",
             model=model,
@@ -326,18 +326,11 @@ async def arun_datascience_agent(
     session_service: SessionService,  # type: ignore[valid-type]
     sandbox: Sandbox = None,
 ):
-    global_toolkit = AliasToolkit(sandbox, add_all=True)
-    # await add_tools(global_toolkit)
-    worker_toolkit = AliasToolkit(sandbox)
     model, formatter = MODEL_FORMATTER_MAPPING[MODEL_CONFIG_NAME]
-    test_tool_list = [
-        "write_file",
-        "run_ipython_cell",
-        "run_shell_command",
-    ]
-    share_tools(global_toolkit, worker_toolkit, test_tool_list)
-    add_ds_specific_tool(worker_toolkit)
-
+    
+    global_toolkit = AliasToolkit(sandbox, add_all=True)
+    worker_toolkit = init_ds_toolkit(global_toolkit)
+    
     try:
         worker_agent = DataScienceAgent(
             name="Data_Science_Agent",

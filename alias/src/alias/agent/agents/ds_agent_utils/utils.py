@@ -95,3 +95,14 @@ def set_run_ipython_cell(sandbox):
     print(
         sandbox.call_tool("run_ipython_cell", {"code": summarize_chart_code}),
     )
+
+def set_workspace_dir(sandbox):
+    # Clear all previous variables and imports
+    print(
+        sandbox.call_tool(
+            "run_shell_command",
+            {
+                "command": """mkdir code data""",
+            },
+        ),
+    )

@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
 """Data Science Agent"""
 import asyncio
-import json
 import os
-from functools import partial
-from typing import List, Dict, Optional, Any, Type, cast, Literal
+from typing import Optional, Any, List, Type, Literal, cast
 import uuid
 
 from agentscope.formatter import FormatterBase
@@ -14,6 +12,7 @@ from agentscope.model import ChatModelBase
 from agentscope.tool import ToolResponse
 from agentscope.tracing import trace_reply
 from agentscope.plan import PlanNotebook
+
 from loguru import logger
 from pydantic import BaseModel, ValidationError, Field
 from tenacity import retry, stop_after_attempt, wait_fixed
@@ -24,13 +23,14 @@ from alias.agent.tools import AliasToolkit, share_tools
 from alias.agent.agents.common_agent_utils import (
     get_user_input_to_mem_pre_reply_hook,
 )
+
+from alias.agent.agents.ds_agent_utils.prompt_selector.llm_prompt_selector import LLMPromptSelector
+from alias.agent.agents.ds_agent_utils.utils import set_workspace_dir
 from .ds_agent_utils import (
     ReportGenerator,
-    LLMPromptSelector,
     get_prompt_from_file,
     files_filter_pre_reply_hook,
     add_ds_specific_tool,
-    set_run_ipython_cell,
 )
 from .ds_agent_utils.ds_config import PROMPT_DS_BASE_PATH
 
@@ -40,7 +40,7 @@ class DefaultStructuredResponse(BaseModel):
         description="Just a placeholder. "
         "Enter any character to trigger report generation",
     )
-
+    
 
 class DataScienceAgent(AliasAgentBase):
     def __init__(
@@ -70,18 +70,12 @@ class DataScienceAgent(AliasAgentBase):
             plan_notebook=PlanNotebook(),
         )
 
-        set_run_ipython_cell(self.toolkit.sandbox)
+        set_workspace_dir(self.toolkit.sandbox)
 
         self.uploaded_files: List[str] = []
 
-        self.infer_trajectories: List[List[Msg]] = []
-
-        self.detailed_report_path = os.path.join(
-            tmp_file_storage_dir,
-            "detailed_report.html",
-        )
         self.tmp_file_storage_dir = tmp_file_storage_dir
-
+        
         self._sys_prompt = get_prompt_from_file(
             os.path.join(
                 PROMPT_DS_BASE_PATH,
@@ -147,7 +141,7 @@ class DataScienceAgent(AliasAgentBase):
 
         logger.info(
             f"[{self.name}] "
-            "DeepInsightAgent initialized (fully model-driven).",
+            "DataScienceAgent initialized (fully model-driven).",
         )
 
     @property
@@ -402,25 +396,49 @@ class DataScienceAgent(AliasAgentBase):
             memory_log=memory_log,
         )
 
-        response, report = await report_generator.generate_report()
+        (
+            response,
+            report_md,
+            report_html,
+        ) = await report_generator.generate_report()
+        md_report_path = os.path.join(
+            self.tmp_file_storage_dir,
+            "detailed_report.md",
+        )
+        html_report_path = os.path.join(
+            self.tmp_file_storage_dir,
+            "detailed_report.html",
+        )
 
-        if report:
-            # report = report.replace(self.tmp_file_storage_dir, ".")
+        if report_html:
             await self.toolkit.call_tool_function(
                 ToolUseBlock(
                     type="tool_use",
                     id=str(uuid.uuid4()),
                     name="write_file",
                     input={
-                        "path": self.detailed_report_path,
-                        "content": report,
+                        "path": md_report_path,
+                        "content": report_md,
+                    },
+                ),
+            )
+            await self.toolkit.call_tool_function(
+                ToolUseBlock(
+                    type="tool_use",
+                    id=str(uuid.uuid4()),
+                    name="write_file",
+                    input={
+                        "path": html_report_path,
+                        "content": report_html,
                     },
                 ),
             )
             response = (
                 f"{response}\n\n"
-                "The detailed report has been saved to "
-                f"{self.detailed_report_path}."
+                "The detailed report (markdown version) has been saved to "
+                f"{md_report_path}.\n"
+                "The detailed report (html version) has been saved to "
+                f"{html_report_path}."
             )
 
         kwargs["response"] = response
@@ -535,8 +553,8 @@ class DataScienceAgent(AliasAgentBase):
 def init_ds_toolkit(full_toolkit: AliasToolkit) -> AliasToolkit:
     ds_toolkit = AliasToolkit(full_toolkit.sandbox, add_all=False)
     ds_tool_list = [
+        "read_file",
         "write_file",
-        "run_ipython_cell",
         "run_shell_command",
     ]
     share_tools(full_toolkit, ds_toolkit, ds_tool_list)
