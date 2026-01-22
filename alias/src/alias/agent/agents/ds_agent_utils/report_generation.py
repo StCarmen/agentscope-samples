@@ -102,7 +102,7 @@ class ReportGenerator:
         print(f"Convert to html took {end_time - start_time} seconds")
         return response.content[0]["text"]
 
-    async def generate_report(self) -> Tuple[str, str]:
+    async def generate_report(self) -> Tuple[str, str, str]:
         markdown_response = await self._log_to_markdown()
 
         #  responseFormat: {
@@ -124,12 +124,16 @@ class ReportGenerator:
         ):
             # During brief response mode,
             # directly return the brief response to the user.
-            return markdown_content["brief_response"], ""
+            return markdown_content["brief_response"], "", ""
         else:
             # In detailed report mode,
             # convert the detailed report to HTML and return it to the user;
             # if a brief summary of the report is needed,
             # it can be obtained through markdown_content["brief_response"].
-            return markdown_content[
-                "brief_response"
-            ], await self._convert_to_html(markdown_content["report_content"])
+            return (
+                markdown_content["brief_response"],
+                markdown_content["report_content"],
+                await self._convert_to_html(
+                    markdown_content["report_content"],
+                ),
+            )
