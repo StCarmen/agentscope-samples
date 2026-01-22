@@ -173,7 +173,10 @@ class DataSource:
             )
 
     def get_coarse_desc(self):
-        return f"{self.source_desc}. {self.source_access_desc}: {self._general_profile()}"
+        return (
+            f"{self.source_desc}. {self.source_access_desc}: "
+            + f"{self._general_profile()}"
+        )
 
     def _get_profile(self, sandbox) -> Optional[Dict[str, Any]]:
         """Run type-specific profiling."""

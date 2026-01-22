@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+# pylint: disable=R1702,R0912,R0915
+
 import os
 import json
 from abc import ABC, abstractmethod
@@ -167,9 +169,6 @@ class BaseDataProfiler(ABC):
 
 
 class StructuredDataProfiler(BaseDataProfiler):
-    def __init__(self, api_key, path, source_type):
-        super().__init__(api_key, path, source_type)
-
     def _generate_content(self, prompt: str, data: Any) -> str:
         return prompt.format(data=data)
 
@@ -403,9 +402,6 @@ class ExcelProfiler(StructuredDataProfiler):
 
 
 class RelationalDatabaseProfiler(StructuredDataProfiler):
-    def __init__(self, api_key, path, source_type):
-        super().__init__(api_key, path, source_type)
-
     def _read_data(self):
         """
         Extracts metadata (schema) for all tables in a relational db.
@@ -432,7 +428,7 @@ class RelationalDatabaseProfiler(StructuredDataProfiler):
             connection = engine.connect()
         except Exception as e:
             print(f"Connection to {self.path} failed: {e}")
-            raise Exception(f"Failed to connect to database: {e}")
+            raise ConnectionError(f"Failed to connect to database: {e}") from e
 
         # Use DSN as the db identifier (can parsed cleaner)
         database_name = self.path
