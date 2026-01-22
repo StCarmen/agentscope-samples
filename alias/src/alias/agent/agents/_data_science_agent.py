@@ -75,6 +75,8 @@ class DataScienceAgent(AliasAgentBase):
 
         self.todo_list: List[Dict[str, Any]] = []
 
+        self.tmp_file_storage_dir = tmp_file_storage_dir
+
         self.data_manager = data_manager
 
         self.detailed_report_path = os.path.join(
