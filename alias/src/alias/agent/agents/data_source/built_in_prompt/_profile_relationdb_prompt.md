@@ -106,4 +106,4 @@ You must output a single valid JSON object.
 ```
 
 # Input
-input_json=`{schema}`
+input_json=`{data}`

@@ -179,25 +179,11 @@ class DataSource:
         """Run type-specific profiling."""
         if not self.profile:
             try:
-                raw_profile = data_profile(
+                self.profile = data_profile(
                     sandbox,
                     self.source_access,
                     self.source_type,
                 )
-
-                if self.source_type in [
-                    SourceType.CSV,
-                    SourceType.EXCEL,
-                    SourceType.RELATIONAL_DB,
-                    SourceType.IMAGE,
-                ]:
-                    self.profile = raw_profile.content[0]["text"]
-                else:
-                    print(
-                        "Unsupported source type in data profile "
-                        f"{self.source_type}",
-                    )
-                    self.profile = {}
             except Exception as e:
                 self.profile = {}
                 logger.error(f"Error when profile data: {e}")

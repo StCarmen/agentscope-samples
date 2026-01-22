@@ -1,0 +1,573 @@
+# -*- coding: utf-8 -*-
+import os
+import json
+from abc import ABC, abstractmethod
+from typing import Any, Dict
+import dashscope
+import pandas as pd
+from sqlalchemy import inspect, text, create_engine
+from tenacity import retry, stop_after_attempt, wait_fixed
+from dashscope.client.base_api import BaseApi
+
+from alias.agent.agents.data_source._typing import SourceType
+from alias.agent.agents.ds_agent_utils.ds_config import (
+    MODEL_CONFIG_NAME,
+    VL_MODEL_NAME,
+)
+from alias.agent.agents.ds_agent_utils import get_prompt_from_file
+
+
+class BaseDataProfiler(ABC):
+    def __init__(self, api_key: str, path: str, source_type: SourceType):
+        self.api_key = api_key
+        self.path = path
+        self.source_type = source_type
+        (
+            self.prompt,
+            self.model,
+            self.llm_api,
+        ) = BaseDataProfiler._load_prompt_and_model(source_type)
+
+    def generate_profile(self) -> Dict[str, Any]:
+        self.data = self._read_data()
+        content = self._generate_content(self.prompt, self.data)
+        # content = self.prompt.format(data=self.data)
+        res = self._call_model(content)
+        self.profile = self._wrap_data_response(res)
+        return self.profile
+
+    @staticmethod
+    def _load_prompt_and_model(source_type: Any = None):
+        PROFILE_PROMPT_BASE_PATH = os.path.join(
+            os.path.dirname(__file__),
+            "built_in_prompt",
+        )
+        source_types_2_prompts = {
+            SourceType.CSV: "_profile_csv_prompt.md",
+            SourceType.EXCEL: "_profile_xlsx_prompt.md",
+            SourceType.IMAGE: "_profile_image_prompt.md",
+            SourceType.RELATIONAL_DB: "_profile_relationdb_prompt.md",
+            "IRREGULAR": "_profile_irregular_xlsx_prompt.md",
+        }
+
+        source_types_2_models = {
+            SourceType.CSV: MODEL_CONFIG_NAME,
+            SourceType.EXCEL: MODEL_CONFIG_NAME,
+            SourceType.IMAGE: VL_MODEL_NAME,
+            SourceType.RELATIONAL_DB: MODEL_CONFIG_NAME,
+            "IRREGULAR": MODEL_CONFIG_NAME,
+        }
+
+        models_2_api = {
+            MODEL_CONFIG_NAME: dashscope.Generation,
+            VL_MODEL_NAME: dashscope.MultiModalConversation,
+        }
+
+        # For irregular excel files, load the prompt
+        if source_type not in source_types_2_prompts:
+            raise ValueError(f"Unsupported source type: {source_type}")
+
+        prompt_file_name = source_types_2_prompts[source_type]
+        model = source_types_2_models[source_type]
+        prompt = get_prompt_from_file(
+            os.path.join(
+                PROFILE_PROMPT_BASE_PATH,
+                prompt_file_name,
+            ),
+            False,
+        )
+        llm_api = models_2_api[model]
+        return prompt, model, llm_api
+
+    @staticmethod
+    def tool_clean_json(raw_response: str):
+        cleaned_response = raw_response.strip()
+        if cleaned_response.startswith("```json"):
+            cleaned_response = cleaned_response[len("```json") :].lstrip()
+        if cleaned_response.startswith("```"):
+            cleaned_response = cleaned_response[len("```") :].lstrip()
+        if cleaned_response.endswith("```"):
+            cleaned_response = cleaned_response[:-3].rstrip()
+        return json.loads(cleaned_response)
+
+    @abstractmethod
+    def _generate_content(self, prompt: str, data: Any) -> str:
+        pass
+
+    @abstractmethod
+    def _read_data(self):
+        pass
+
+    @abstractmethod
+    def _wrap_data_response(self, response: Dict[str, Any]) -> Dict[str, Any]:
+        pass
+
+    @retry(
+        stop=stop_after_attempt(50),
+        wait=wait_fixed(5),
+        reraise=True,
+        # before_sleep=_print_exc_on_retry
+    )
+    def _call_model(
+        self,
+        content: Any,
+        model: str = None,
+        llm_api: BaseApi = None,
+    ) -> Dict[str, Any]:
+        """
+        Uses an LLM to generate a profile based on the provided content.
+
+        Args:
+            content (str): The text content (e.g., schema description).
+            model (str): The model name to use for generation.
+
+        Returns:
+            dict: The profiled metadata in dict format, parsed from LLM resp.
+        """
+        try:
+            sys_message = {
+                "role": "system",
+                "content": "You are a helpful assistant.",
+            }
+            user_message = {
+                "role": "user",
+                "content": content,
+            }
+            messages = [sys_message, user_message]
+            # dashscope.MultiModalConversation.call
+            if model is None:
+                response = self.llm_api.call(
+                    model=self.model,
+                    messages=messages,
+                    api_key=self.api_key,
+                )
+            else:
+                response = llm_api.call(
+                    model=model,
+                    messages=messages,
+                    api_key=self.api_key,
+                )
+            response = response.output["choices"][0]["message"]["content"]
+            # Clean and parse the JSON response from the LLM
+            response = (
+                response[0]["text"] if isinstance(response, list) else response
+            )
+            response = BaseDataProfiler.tool_clean_json(response)
+            response = (
+                response[0]["text"] if isinstance(response, list) else response
+            )
+            return response
+
+        except Exception:
+            import traceback
+
+            print(traceback.format_exc())
+            # Consider returning None or an empty dict on failure
+            return {}
+
+
+class StructuredDataProfiler(BaseDataProfiler):
+    def __init__(self, api_key, path, source_type):
+        super().__init__(api_key, path, source_type)
+
+    def _generate_content(self, prompt: str, data: Any) -> str:
+        return prompt.format(data=data)
+
+    @staticmethod
+    def is_irregular(cols: list[str]):
+        # any(col.startswith('Unnamed') for col in df.columns.astype(str))?
+        unnamed_columns_ratio = sum(
+            col.startswith("Unnamed") for col in cols.astype(str)
+        ) / len(cols)
+        return unnamed_columns_ratio >= 0.5
+
+    @staticmethod
+    def _extract_schema_from_table(df: pd.DataFrame, df_name: str) -> dict:
+        """
+        Analyzes a single DataFrame to extract column metadata and samples.
+
+        Args:
+            df (pd.DataFrame): The dataframe to analyze.
+            table_name (str): Name of the table (or sheet/filename).
+
+        Returns:
+            dict: Schema metadata for the table.
+        """
+        col_list = []
+        for col in df.columns:
+            dtype_name = str(df[col].dtype).upper()
+            # Get random samples to help LLM understand the data content
+            # sample(frac=1): shuffle the data
+            # head(n_samples): get the first n_samples,
+            # if less than n_samples, retrieved here without any errors.
+            candidates = (
+                df[col]
+                .drop_duplicates()
+                .sample(frac=1, random_state=42)
+                .head(5)
+                .astype(str)
+                .tolist()
+            )
+            # Limit the size not to exceed 1000 characters.
+            # TODO: dynamic size control? 1000 is too small?
+            samples = []
+            length = 0
+            for s in candidates:
+                if (length := length + len(s)) <= 1000:
+                    samples.append(s)
+            col_list.append(
+                {
+                    "column name": col,
+                    "data type": dtype_name,
+                    "data samples": samples,
+                },
+            )
+        # Create a CSV snippet of the first few rows
+        raw_data_snippet = df.head(5).to_csv(index=True)
+
+        table_schema = {
+            "name": df_name,
+            "raw_data_snippet": raw_data_snippet,
+            # Note: Row count logic might need optimization for large files
+            # TODO: how to get the row count more efficiently, openpyxl.
+            "row_count": len(df) if len(df) < 100 else None,
+            "col_count": len(df.columns),
+            "columns": col_list,
+        }
+        return table_schema
+
+    def _wrap_data_response(self, response: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Merges the original schema with the LLM-generated response.
+        """
+        new_schema = {}
+        new_schema["name"] = self.data["name"]
+        new_schema["description"] = response["description"]
+        #  # For flat files like CSV, they contain columns
+        if "columns" in self.data:
+            new_schema["columns"] = self.data["columns"]
+        # # For multi-table sources like Excel/Database,
+        # they contain tables. Each table contains columns and description
+        if "tables" in self.data and "tables" in response:
+            new_schema["tables"] = []
+            for i, table in enumerate(self.data["tables"]):
+                # Ensure alignment between schema tables and resp tables
+                # TODO: It matches by order, by name would be more robust.
+                if i >= len(response["tables"]):
+                    # LLM returns less tables than the original schema
+                    break
+                assert response["tables"][i]["name"] == table["name"]
+                new_table = {}
+                new_table["name"] = table["name"]
+                new_table["description"] = response["tables"][i]["description"]
+                if "columns" in table:
+                    new_table["columns"] = table["columns"]
+                if "irregular_judgment" in table:
+                    new_table["irregular_judgment"] = table[
+                        "irregular_judgment"
+                    ]
+                new_schema["tables"].append(new_table)
+        return new_schema
+
+
+class ImageProfiler(BaseDataProfiler):
+    def __init__(self, api_key, path, source_type):
+        super().__init__(api_key, path, source_type)
+        self.file_name = os.path.basename(self.path)
+
+    def _generate_content(self, prompt, data):
+        contents = []
+        # Convert image paths according to the model requirements
+        contents.append(
+            {
+                "image": data,
+            },
+        )
+        # append text
+        contents.append({"text": prompt})
+        return contents
+
+    def _read_data(self):
+        return self.path
+
+    def _wrap_data_response(self, response: Dict[str, Any]) -> Dict[str, Any]:
+        profile = {
+            "name": self.file_name,
+            "description": response["description"],
+            "details": response["details"],
+        }
+        return profile
+
+
+class ExcelProfiler(StructuredDataProfiler):
+    def __init__(self, api_key, path, source_type):
+        super().__init__(api_key, path, source_type)
+        self.file_name = os.path.basename(self.path)
+
+    def _read_data(self):
+        excel_file = pd.ExcelFile(self.path)
+        table_schemas = []
+        schema = {}
+        schema["name"] = self.file_name
+        for sheet_name in excel_file.sheet_names:
+            # TODO: use openpyxl to read excel to avoid irregular excel.
+            # Read a subset of each sheet
+            df = pd.read_excel(
+                self.path,
+                sheet_name=sheet_name,
+                nrows=100,
+            ).convert_dtypes()
+            if not StructuredDataProfiler.is_irregular(df.columns):
+                table_schema = (
+                    StructuredDataProfiler._extract_schema_from_table(
+                        df,
+                        sheet_name,
+                    )
+                )
+            else:
+                # if unnamed columns, use openpyxl to extract top 100 rows.
+                import openpyxl
+
+                wb = openpyxl.load_workbook(
+                    self.path,
+                    read_only=True,
+                    data_only=True,
+                )
+                ws = wb[sheet_name]
+                rows_data = []
+                for i, row in enumerate(
+                    ws.iter_rows(values_only=True),
+                    start=1,
+                ):
+                    if i > 100:
+                        break
+                    rows_data.append(
+                        ",".join(
+                            "" if cell is None else str(cell) for cell in row
+                        ),
+                    )
+                wb.close()
+                raw_data_snippet = "\n".join(rows_data)
+
+                table_schema = self._extract_irregular_table(
+                    self.path,
+                    raw_data_snippet,
+                    sheet_name,
+                )
+                # table_schema = {
+                #     "name": sheet_name,
+                #     "raw_data_snippet":  "\n".join(rows_data),
+                # }
+            table_schemas.append(table_schema)
+        schema["tables"] = table_schemas
+        return schema
+
+    def _extract_irregular_table(
+        self,
+        path: str,
+        raw_data_snippet: str,
+        sheet_name: str,
+    ):
+        prompt, model, llm_api = self._load_prompt_and_model("IRREGULAR")
+        content = prompt.format(raw_snippet_data=raw_data_snippet)
+        res = self._call_model(content=content, model=model, llm_api=llm_api)
+
+        print(res["reasoning"])
+        if res["is_extractable_table"]:
+            skiprows = res["row_start_index"] + 1
+            cols_range = res["col_ranges"]
+            df = pd.read_excel(
+                path,
+                sheet_name=sheet_name,
+                nrows=100,
+                skiprows=skiprows,
+                usecols=range(cols_range[0], cols_range[1] + 1),
+            ).convert_dtypes()
+            if StructuredDataProfiler.is_irregular(df.columns):
+                schema = {
+                    "name": sheet_name,
+                    "raw_data_snippet": raw_data_snippet,
+                    "irregular_judgment": "INVALID/UNSTRUCTURED",
+                }
+            else:
+                schema = self._extract_schema_from_table(df, sheet_name)
+                schema["irregular_judgment"] = res
+        else:
+            schema = {
+                "name": sheet_name,
+                "raw_data_snippet": raw_data_snippet,
+                "irregular_judgment": "INVALID/UNSTRUCTURED",
+            }
+
+        return schema
+
+
+class RelationalDatabaseProfiler(StructuredDataProfiler):
+    def __init__(self, api_key, path, source_type):
+        super().__init__(api_key, path, source_type)
+
+    def _read_data(self):
+        """
+        Extracts metadata (schema) for all tables in a relational db.
+        Args:
+            dsn (str): The Database Source Name (connection string).
+            eg. postgresql://user:XB6FqqgHk26h@47.238.87.81:49166/dacomp_001
+        Returns:
+            dict: A JSON-compatible dictionary containing database metadata
+                    (table names, columns, row counts, samples).
+        """
+        options = {
+            "isolation_level": "AUTOCOMMIT",
+            # Test conns before use (handles MySQL 8hr timeout, network drops)
+            "pool_pre_ping": True,
+            # Keep minimal conns (MCP typically handles 1 request at a time)
+            "pool_size": 1,
+            # Allow temporary burst capacity for edge cases
+            "max_overflow": 2,
+            # Force refresh conns older than 1hr (under MySQL's 8hr default)
+            "pool_recycle": 3600,
+        }
+        engine = create_engine(self.path, **options)
+        try:
+            connection = engine.connect()
+        except Exception as e:
+            print(f"Connection to {self.path} failed: {e}")
+            raise Exception(f"Failed to connect to database: {e}")
+
+        # Use DSN as the db identifier (can parsed cleaner)
+        database_name = self.path
+        inspector = inspect(connection)
+        table_names = inspector.get_table_names()
+
+        tables_data = []
+        for table_name in table_names:
+            try:
+                # 1. Get column information
+                columns = inspector.get_columns(table_name)
+                col_count = len(columns)
+
+                # 2. Get row count
+                row_count_result = connection.execute(
+                    text(f"SELECT COUNT(*) FROM {table_name}"),
+                ).fetchone()
+                row_count = row_count_result[0] if row_count_result else 0
+
+                # 3. Get raw data snippet (first 5 rows)
+                raw_data_snippet = ""
+                try:
+                    result = connection.execute(
+                        text(f"SELECT * FROM {table_name} LIMIT 5"),
+                    )
+                    rows = result.fetchall()
+                    if rows:
+                        column_names = [col["name"] for col in columns]
+                        lines = []
+                        # Add header
+                        lines.append(", ".join(column_names))
+                        # Add data rows
+                        for row in rows:
+                            row_values = []
+                            for value in row:
+                                if value is None:
+                                    row_values.append("NULL")
+                                else:
+                                    # Escape commas and newlines
+                                    val_str = str(value)
+                                    if "," in val_str or "\n" in val_str:
+                                        val_str = f'"{val_str}"'
+                                    row_values.append(val_str)
+                            lines.append(", ".join(row_values))
+                        raw_data_snippet = "\n".join(lines)
+                except Exception as e:
+                    print(f"Error fetching {table_name} data: {str(e)}")
+                    raw_data_snippet = None
+                # 4. detailed column info (types and samples)
+                column_details = []
+                if rows:
+                    for i, col in enumerate(columns):
+                        col_name = col["name"]
+                        col_type = str(col["type"])
+                        # Extract samples for this column from the fetched rows
+                        sample_values = []
+                        for row in rows:
+                            if i < len(row):
+                                val = row[i]
+                                sample_values.append(
+                                    str(val) if val is not None else "NULL",
+                                )
+
+                        column_details.append(
+                            {
+                                "column name": col_name,
+                                "data type": col_type,
+                                "data sample": sample_values[:3],
+                            },
+                        )
+
+                table_info = {
+                    "name": table_name,
+                    "row_count": row_count,
+                    "col_count": col_count,
+                    "raw_data_snippet": raw_data_snippet,
+                    "columns": column_details,
+                }
+
+                tables_data.append(table_info)
+
+            except Exception as e:
+                # If one table fails, log it and continue to the next
+                print(f"Error processing {table_name}: {str(e)}")
+                return {}
+        # Contruct the final schema
+        schema = {
+            "name": database_name,
+            "tables": tables_data,
+        }
+        self.data = schema
+        return schema
+
+
+class CsvProfiler(ExcelProfiler):
+    def __init__(self, api_key, path, source_type):
+        super().__init__(api_key, path, source_type)
+        self.file_name = os.path.basename(path)
+
+    def _read_data(self):
+        """
+        Handlers schema extraction for CSV files.
+        Treats the CSV as a single table.
+        """
+        import polars as pl
+
+        # Use Polars for efficient row counting on large files
+        df = pl.scan_csv(self.path, ignore_errors=True)
+        row_count = df.select(pl.len()).collect().item()
+        # Read a subset with Pandas for detailed schema analysis
+        df = pd.read_csv(self.path, nrows=100).convert_dtypes()
+        schema = self._extract_schema_from_table(df, self.file_name)
+        schema["row_count"] = row_count
+        # if StructuredDataProfiler.is_irregular(df.columns):
+        #   self._extract_irregular_table(...)
+        return schema
+
+
+class DataProfilerFactory:
+    @staticmethod
+    def get_profiler(
+        api_key: str,
+        path: str,
+        source_type: SourceType,
+    ) -> BaseDataProfiler:
+        """
+        Factory method to get the appropriate profiler
+        """
+        if source_type == SourceType.IMAGE:
+            return ImageProfiler(api_key, path, source_type)
+        elif source_type == SourceType.CSV:
+            return CsvProfiler(api_key, path, source_type)
+        elif source_type == SourceType.EXCEL:
+            return ExcelProfiler(api_key, path, source_type)
+        elif source_type == SourceType.RELATIONAL_DB:
+            return RelationalDatabaseProfiler(api_key, path, source_type)
+        else:
+            raise ValueError(f"Unsupported source type: {source_type}")
