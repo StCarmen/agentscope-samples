@@ -7,7 +7,7 @@ If it is NOT a valid table (e.g., a dashboard, a form, a letter, or empty), you 
 # Task Analysis
 Excel sheets fall into two categories:
 1. **List-Like Tables (Valid)**: Contains a header row followed by multiple rows of consistent record data. This is what we want.
-2. **Unstructured/Layout-Heavy (Invalid)**:
+2. **Unstructured/Layout-Heavy (Unstructured)**:
     - **Forms/KV Pairs**: "Label: Value" scattered across the sheet.
     - **Dashboards**: Multiple small tables, charts, or scattered numbers.
     - **Text/Notes**: Paragraphs of text or disclaimers without column structure.
@@ -61,7 +61,7 @@ Output:
   "reasoning": " Rows 0-1 are ignored metadata, Row 2 is clear headers. Rows 3-4 contain consistent data aligned with headers. It is IRREGULAR and requires skiprows=2, usecols=[1, 4] to extract using Pansa DataFrame."
 }}
 
-## Example 2 (Invalid - Form/Dashboard)
+## Example 2 (Unstructured - Form/Dashboard)
 Input:
 Company Invoice, NaN, NaN, Invoice #: 001
 To:, John Doe, NaN, Date:, 2023-01-01

@@ -386,7 +386,7 @@ class ExcelProfiler(StructuredDataProfiler):
                 schema = {
                     "name": sheet_name,
                     "raw_data_snippet": raw_data_snippet,
-                    "irregular_judgment": "INVALID/UNSTRUCTURED",
+                    "irregular_judgment": "UNSTRUCTURED",
                 }
             else:
                 schema = self._extract_schema_from_table(df, sheet_name)
@@ -395,7 +395,7 @@ class ExcelProfiler(StructuredDataProfiler):
             schema = {
                 "name": sheet_name,
                 "raw_data_snippet": raw_data_snippet,
-                "irregular_judgment": "INVALID/UNSTRUCTURED",
+                "irregular_judgment": "UNSTRUCTURED",
             }
 
         return schema
