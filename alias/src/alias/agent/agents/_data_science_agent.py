@@ -2,7 +2,7 @@
 """Data Science Agent"""
 import asyncio
 import os
-from typing import Optional, Any, List, Type, Literal, cast
+from typing import Optional, Any, Type, Literal, cast
 import uuid
 
 from agentscope.formatter import FormatterBase
@@ -29,6 +29,7 @@ from alias.agent.agents.ds_agent_utils.prompt_selector.llm_prompt_selector impor
 )
 
 from alias.agent.agents.ds_agent_utils.utils import set_workspace_dir
+from alias.agent.agents.data_source.data_source import DataSourceManager
 from .ds_agent_utils import (
     ReportGenerator,
     get_prompt_from_file,
@@ -53,7 +54,8 @@ class DataScienceAgent(AliasAgentBase):
         formatter: FormatterBase,
         memory: MemoryBase,
         toolkit: AliasToolkit,
-        sys_prompt: str = None,
+        data_manager: DataSourceManager = None,
+        sys_prompt: str = "",
         max_iters: int = 30,
         tmp_file_storage_dir: str = "/workspace",
         state_saving_dir: Optional[str] = None,
@@ -75,16 +77,23 @@ class DataScienceAgent(AliasAgentBase):
 
         set_workspace_dir(self.toolkit.sandbox)
 
-        self.uploaded_files: List[str] = []
-
         self.tmp_file_storage_dir = tmp_file_storage_dir
 
-        self._sys_prompt = get_prompt_from_file(
-            os.path.join(
-                PROMPT_DS_BASE_PATH,
-                "_agent_system_workflow_prompt.md",
-            ),
-            False,
+        self.data_manager = data_manager
+
+        self._sys_prompt = (
+            cast(
+                str,
+                get_prompt_from_file(
+                    os.path.join(
+                        PROMPT_DS_BASE_PATH,
+                        "_agent_system_workflow_prompt.md",
+                    ),
+                    False,
+                ),
+            )
+            + "\n\n"
+            + sys_prompt
         )
 
         # load prompts and initialize selector
