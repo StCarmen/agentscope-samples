@@ -58,8 +58,10 @@ class DataSource:
         self.endpoint = endpoint
         self.name = name
 
-        source_access_type = SOURCE_TYPE_TO_ACCESS_TYPE.get(source_type, \
-            SourceAccessType.DIRECT)
+        source_access_type = SOURCE_TYPE_TO_ACCESS_TYPE.get(
+            source_type,
+            SourceAccessType.DIRECT,
+        )
 
         self.source_access_type = source_access_type
         self.source_type = source_type

@@ -49,11 +49,16 @@ class BaseDataProfiler(ABC):
         Returns:
             Dictionary containing the complete data profile
         """
-        self.data = self._read_data()
-        content = self._generate_content(self.prompt, self.data)
-        # content = self.prompt.format(data=self.data)
-        res = self._call_model(content)
-        self.profile = self._wrap_data_response(res)
+        try:
+            self.profile = self.generate_profile()
+            self.data = self._read_data()
+            content = self._generate_content(self.prompt, self.data)
+            # content = self.prompt.format(data=self.data)
+            res = self._call_model(content)
+            self.profile = self._wrap_data_response(res)
+        except Exception as e:
+            print(f"Error generating profile: {e}")
+            self.profile = {}
         return self.profile
 
     @staticmethod
@@ -212,6 +217,7 @@ class BaseDataProfiler(ABC):
                     messages=messages,
                     api_key=self.api_key,
                 )
+            # TODO: handle failed call of model
             response = response.output["choices"][0]["message"]["content"]
             # Clean and parse the JSON response from the LLM
             response = (
@@ -223,10 +229,8 @@ class BaseDataProfiler(ABC):
             )
             return response
 
-        except Exception:
-            import traceback
-
-            print(traceback.format_exc())
+        except Exception as e:
+            print(f"Error calling the model {self.model} with {e}")
             # Consider returning None or an empty dict on failure
             return {}
 
