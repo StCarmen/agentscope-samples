@@ -50,7 +50,6 @@ class BaseDataProfiler(ABC):
             Dictionary containing the complete data profile
         """
         try:
-            self.profile = self.generate_profile()
             self.data = self._read_data()
             content = self._generate_content(self.prompt, self.data)
             # content = self.prompt.format(data=self.data)
