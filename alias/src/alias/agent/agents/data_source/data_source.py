@@ -58,9 +58,10 @@ class DataSource:
         self.endpoint = endpoint
         self.name = name
 
-        source_access_type = SOURCE_TYPE_TO_ACCESS_TYPE.get(source_type)
-        if source_access_type is None:
-            raise ValueError("Invalid access type")
+        source_access_type = SOURCE_TYPE_TO_ACCESS_TYPE.get(
+            source_type,
+            SourceAccessType.DIRECT,
+        )
 
         self.source_access_type = source_access_type
         self.source_type = source_type
@@ -173,31 +174,20 @@ class DataSource:
             )
 
     def get_coarse_desc(self):
-        return f"{self.source_desc}. {self.source_access_desc}"
+        return (
+            f"{self.source_desc}. {self.source_access_desc}: "
+            + f"{self._general_profile()}"
+        )
 
     def _get_profile(self, sandbox) -> Optional[Dict[str, Any]]:
         """Run type-specific profiling."""
         if not self.profile:
             try:
-                raw_profile = data_profile(
+                self.profile = data_profile(
                     sandbox,
                     self.source_access,
                     self.source_type,
                 )
-
-                if self.source_type in [
-                    SourceType.CSV,
-                    SourceType.EXCEL,
-                    SourceType.RELATIONAL_DB,
-                    SourceType.IMAGE,
-                ]:
-                    self.profile = raw_profile.content[0]["text"]
-                else:
-                    print(
-                        "Unsupported source type in data profile "
-                        f"{self.source_type}",
-                    )
-                    self.profile = {}
             except Exception as e:
                 self.profile = {}
                 logger.error(f"Error when profile data: {e}")
@@ -465,7 +455,7 @@ class DataSourceManager:
         # Check for file extensions
         if endpoint_lower.endswith(".csv"):
             source_type = SourceType.CSV
-        elif endpoint_lower.endswith((".xls", ".xlsx")):
+        elif endpoint_lower.endswith((".xls", ".xlsx", "xlsm")):
             source_type = SourceType.EXCEL
         elif endpoint_lower.endswith(".json"):
             source_type = SourceType.JSON

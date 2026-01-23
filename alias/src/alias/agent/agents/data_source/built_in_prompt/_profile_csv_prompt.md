@@ -80,4 +80,4 @@ You must output a single valid JSON object containing only the `description` key
 ```
 
 # Input
-input_json = {schema}
+input_json = {data}

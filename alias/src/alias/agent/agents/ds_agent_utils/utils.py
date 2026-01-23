@@ -36,10 +36,16 @@ async def model_call_with_retry(
     tool_json_schemas=None,
     tool_choice=None,
     msg_name="model_call",
+    structured_model=None,
 ) -> Msg:
     prompt = await formatter.format(msgs=msgs)
 
-    res = await model(prompt, tools=tool_json_schemas, tool_choice=tool_choice)
+    res = await model(
+        prompt,
+        tools=tool_json_schemas,
+        tool_choice=tool_choice,
+        structured_model=structured_model,
+    )
 
     if model.stream:
         msg = Msg(msg_name, [], "assistant")
