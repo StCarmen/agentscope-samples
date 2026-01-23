@@ -64,7 +64,7 @@ def _copy_file_from_sandbox(sandbox: AliasSandbox, file_path: str) -> str:
     return file_source
 
 
-def data_profile(
+async def data_profile(
     sandbox: AliasSandbox,
     sandbox_path: str,
     source_type: SourceType,
@@ -99,4 +99,4 @@ def data_profile(
         source_type=source_type,
     )
 
-    return profiler.generate_profile()
+    return await profiler.generate_profile()

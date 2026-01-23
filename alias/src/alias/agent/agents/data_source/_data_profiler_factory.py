@@ -5,18 +5,21 @@ import os
 import json
 from abc import ABC, abstractmethod
 from typing import Any, Dict
-import dashscope
 import pandas as pd
 from sqlalchemy import inspect, text, create_engine
-from tenacity import retry, stop_after_attempt, wait_fixed
-from dashscope.client.base_api import BaseApi
+from agentscope.message import Msg
+from agentscope.model import DashScopeChatModel
+from agentscope.formatter import DashScopeChatFormatter
 
 from alias.agent.agents.data_source._typing import SourceType
 from alias.agent.agents.ds_agent_utils.ds_config import (
     MODEL_CONFIG_NAME,
     VL_MODEL_NAME,
 )
-from alias.agent.agents.ds_agent_utils import get_prompt_from_file
+from alias.agent.agents.ds_agent_utils import (
+    get_prompt_from_file,
+    model_call_with_retry,
+)
 
 
 class BaseDataProfiler(ABC):
@@ -38,10 +41,10 @@ class BaseDataProfiler(ABC):
         (
             self.prompt,
             self.model,
-            self.llm_api,
+            self.formatter,
         ) = BaseDataProfiler._load_prompt_and_model(source_type)
 
-    def generate_profile(self) -> Dict[str, Any]:
+    async def generate_profile(self) -> Dict[str, Any]:
         """Generate a complete data profile
         by reading data, generating content,
         calling the LLM, and wrapping the response.
@@ -50,10 +53,10 @@ class BaseDataProfiler(ABC):
             Dictionary containing the complete data profile
         """
         try:
-            self.data = self._read_data()
+            self.data = await self._read_data()
             content = self._generate_content(self.prompt, self.data)
             # content = self.prompt.format(data=self.data)
-            res = self._call_model(content)
+            res = await self._call_model(content)
             self.profile = self._wrap_data_response(res)
         except Exception as e:
             print(f"Error generating profile: {e}")
@@ -61,7 +64,7 @@ class BaseDataProfiler(ABC):
         return self.profile
 
     @staticmethod
-    def _load_prompt_and_model(source_type: Any = None):
+    def _load_prompt_and_model(source_type: Any = None, api_key: str = None):
         """Load the appropriate prompt template, model name and LLM API
         class
         based on the source type.
@@ -70,7 +73,7 @@ class BaseDataProfiler(ABC):
             source_type: Type of data source (CSV, EXCEL, IMAGE, etc.)
 
         Returns:
-            Tuple of (prompt_template, model_name, llm_api_class)
+            Tuple of (prompt_template, model, formatter)
 
         Raises:
             ValueError: If source_type is unsupported
@@ -87,6 +90,10 @@ class BaseDataProfiler(ABC):
             "IRREGULAR": "_profile_irregular_xlsx_prompt.md",
         }
 
+        # For irregular excel files, load the prompt
+        if source_type not in source_types_2_prompts:
+            raise ValueError(f"Unsupported source type: {source_type}")
+
         source_types_2_models = {
             SourceType.CSV: MODEL_CONFIG_NAME,
             SourceType.EXCEL: MODEL_CONFIG_NAME,
@@ -95,17 +102,29 @@ class BaseDataProfiler(ABC):
             "IRREGULAR": MODEL_CONFIG_NAME,
         }
 
-        models_2_api = {
-            MODEL_CONFIG_NAME: dashscope.Generation,
-            VL_MODEL_NAME: dashscope.MultiModalConversation,
+        if not api_key:
+            api_key = os.environ.get("DASHSCOPE_API_KEY")
+
+        models_2_model_and_formatter = {
+            MODEL_CONFIG_NAME: [
+                DashScopeChatModel(
+                    api_key=api_key,
+                    model_name="qwen3-max-preview",
+                    stream=True,
+                ),
+                DashScopeChatFormatter(),
+            ],
+            VL_MODEL_NAME: [
+                DashScopeChatModel(
+                    api_key=api_key,
+                    model_name="qwen-vl-max-latest",
+                    stream=True,
+                ),
+                DashScopeChatFormatter(),
+            ],
         }
 
-        # For irregular excel files, load the prompt
-        if source_type not in source_types_2_prompts:
-            raise ValueError(f"Unsupported source type: {source_type}")
-
         prompt_file_name = source_types_2_prompts[source_type]
-        model = source_types_2_models[source_type]
         prompt = get_prompt_from_file(
             os.path.join(
                 PROFILE_PROMPT_BASE_PATH,
@@ -113,8 +132,10 @@ class BaseDataProfiler(ABC):
             ),
             False,
         )
-        llm_api = models_2_api[model]
-        return prompt, model, llm_api
+
+        model_name = source_types_2_models[source_type]
+        model, formatter = models_2_model_and_formatter[model_name]
+        return prompt, model, formatter
 
     @staticmethod
     def tool_clean_json(raw_response: str):
@@ -154,7 +175,7 @@ class BaseDataProfiler(ABC):
         """
 
     @abstractmethod
-    def _read_data(self):
+    async def _read_data(self):
         """Abstract method to read and process data from the source path.
 
         This method should be implemented by subclasses to handle
@@ -165,17 +186,11 @@ class BaseDataProfiler(ABC):
             Processed data in appropriate format for the data type
         """
 
-    @retry(
-        stop=stop_after_attempt(50),
-        wait=wait_fixed(5),
-        reraise=True,
-        # before_sleep=_print_exc_on_retry
-    )
-    def _call_model(
+    async def _call_model(
         self,
         content: Any,
-        model: str = None,
-        llm_api: BaseApi = None,
+        model: DashScopeChatModel = None,
+        formatter: DashScopeChatFormatter = None,
     ) -> Dict[str, Any]:
         """Uses LLM to generate profile based on the content.
         Makes multiple attempts to call the LLM service,
@@ -184,8 +199,8 @@ class BaseDataProfiler(ABC):
 
         Args:
             content: Content to send to the LLM (text or multimodal)
-            model: Model name to use (uses instance model if None)
-            llm_api: API class to use (uses instance API if None)
+            model: ChatModel to use
+            formatter: ChatFormatter to use for LLM input
 
         Returns:
             Dictionary response parsed from LLM output
@@ -193,45 +208,29 @@ class BaseDataProfiler(ABC):
         Raises:
             Exception: If all retry attempts fail
         """
-        try:
-            sys_message = {
-                "role": "system",
-                "content": "You are a helpful assistant.",
-            }
-            user_message = {
-                "role": "user",
-                "content": content,
-            }
-            messages = [sys_message, user_message]
-            # dashscope.MultiModalConversation.call
-            if model is None:
-                response = self.llm_api.call(
-                    model=self.model,
-                    messages=messages,
-                    api_key=self.api_key,
-                )
-            else:
-                response = llm_api.call(
-                    model=model,
-                    messages=messages,
-                    api_key=self.api_key,
-                )
-            # TODO: handle failed call of model
-            response = response.output["choices"][0]["message"]["content"]
-            # Clean and parse the JSON response from the LLM
-            response = (
-                response[0]["text"] if isinstance(response, list) else response
+        system_prompt = (
+            "You are a helpful AI assistant for database management."
+        )
+        msgs = [
+            Msg("system", system_prompt, "system"),
+            Msg("user", content, "user"),
+        ]
+        if model is None:
+            raw_response = await model_call_with_retry(
+                model=self.model,
+                formatter=self.formatter,
+                msgs=msgs,
             )
-            response = BaseDataProfiler.tool_clean_json(response)
-            response = (
-                response[0]["text"] if isinstance(response, list) else response
+        else:
+            raw_response = await model_call_with_retry(
+                model=model,
+                formatter=formatter,
+                msgs=msgs,
             )
-            return response
-
-        except Exception as e:
-            print(f"Error calling the model {self.model} with {e}")
-            # Consider returning None or an empty dict on failure
-            return {}
+        response = raw_response.content[0]["text"]
+        # Clean and parse the JSON response from the LLM
+        response = BaseDataProfiler.tool_clean_json(response)
+        return response
 
     @abstractmethod
     def _wrap_data_response(self, response: Dict[str, Any]) -> Dict[str, Any]:
@@ -386,7 +385,7 @@ class ExcelProfiler(StructuredDataProfiler):
         super().__init__(api_key, path, source_type)
         self.file_name = os.path.basename(self.path)
 
-    def _extract_irregular_table(
+    async def _extract_irregular_table(
         self,
         path: str,
         raw_data_snippet: str,
@@ -404,12 +403,16 @@ class ExcelProfiler(StructuredDataProfiler):
         Returns:
             Schema dictionary for the irregular table structure
         """
-        prompt, model, llm_api = self._load_prompt_and_model("IRREGULAR")
+        prompt, model, formatter = self._load_prompt_and_model("IRREGULAR")
         content = prompt.format(raw_snippet_data=raw_data_snippet)
-        res = self._call_model(content=content, model=model, llm_api=llm_api)
+        res = await self._call_model(
+            content=content,
+            model=model,
+            formatter=formatter,
+        )
 
-        print(res["reasoning"])
-        if res["is_extractable_table"]:
+        if "is_extractable_table" in res and res["is_extractable_table"]:
+            print(res["reasoning"])
             skiprows = res["row_start_index"] + 1
             cols_range = res["col_ranges"]
             df = pd.read_excel(
@@ -437,7 +440,7 @@ class ExcelProfiler(StructuredDataProfiler):
 
         return schema
 
-    def _read_data(self):
+    async def _read_data(self):
         """Read and process Excel file data including all sheets.
 
         Handles both regular and irregular Excel files by using pandas
@@ -490,7 +493,7 @@ class ExcelProfiler(StructuredDataProfiler):
                 wb.close()
                 raw_data_snippet = "\n".join(rows_data)
 
-                table_schema = self._extract_irregular_table(
+                table_schema = await self._extract_irregular_table(
                     self.path,
                     raw_data_snippet,
                     sheet_name,
@@ -505,7 +508,7 @@ class ExcelProfiler(StructuredDataProfiler):
 
 
 class RelationalDatabaseProfiler(StructuredDataProfiler):
-    def _read_data(self):
+    async def _read_data(self):
         """
         Extracts metadata (schema) for all tables in a relational db.
 
@@ -631,7 +634,7 @@ class CsvProfiler(ExcelProfiler):
         super().__init__(api_key, path, source_type)
         self.file_name = os.path.basename(path)
 
-    def _read_data(self):
+    async def _read_data(self):
         """Handles schema extraction for CSV as single-table sources.
 
         Uses Polars for efficient row counting on large files and
@@ -661,7 +664,7 @@ class ImageProfiler(BaseDataProfiler):
         super().__init__(api_key, path, source_type)
         self.file_name = os.path.basename(self.path)
 
-    def _read_data(self):
+    async def _read_data(self):
         """
         For images, this simply returns the path since the LLM API
         handles loading the image directly.
