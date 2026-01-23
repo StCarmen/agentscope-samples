@@ -4,6 +4,7 @@ import base64
 import tempfile
 from typing import Any, Dict
 from io import BytesIO
+from pathlib import Path
 import requests
 
 from alias.agent.agents.data_source._typing import SourceType
@@ -56,7 +57,7 @@ def _copy_file_from_sandbox(sandbox: AliasSandbox, file_path: str) -> str:
         # Create a temporary file with the same name as the original file
         temp_dir = tempfile.mkdtemp()
         target_file_name = os.path.basename(file_path)
-        full_path = os.path.join(temp_dir, target_file_name)
+        full_path = Path(temp_dir) / target_file_name
         with open(full_path, "wb") as f:
             f.write(file_buffer.getvalue())
         file_source = full_path
@@ -85,7 +86,6 @@ def data_profile(
         ValueError: If the provided `source_type` is not supported.
     """
 
-    # 0. Copy the file to a temporary location
     if source_type in [SourceType.CSV, SourceType.EXCEL, SourceType.IMAGE]:
         local_path = _copy_file_from_sandbox(sandbox, sandbox_path)
     elif source_type == SourceType.RELATIONAL_DB:

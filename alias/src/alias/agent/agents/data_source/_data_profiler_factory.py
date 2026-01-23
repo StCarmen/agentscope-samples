@@ -20,7 +20,18 @@ from alias.agent.agents.ds_agent_utils import get_prompt_from_file
 
 
 class BaseDataProfiler(ABC):
+    """Abstract base class for data profilers that analyze different data
+    sources like csv, excel, db, etc.
+    """
+
     def __init__(self, api_key: str, path: str, source_type: SourceType):
+        """Initialize the data profiler with API key, data path and type.
+
+        Args:
+            api_key: Authentication key for LLM service
+            path: Path to the data source file or connection string
+            source_type: Enum indicating the type of data source
+        """
         self.api_key = api_key
         self.path = path
         self.source_type = source_type
@@ -31,6 +42,13 @@ class BaseDataProfiler(ABC):
         ) = BaseDataProfiler._load_prompt_and_model(source_type)
 
     def generate_profile(self) -> Dict[str, Any]:
+        """Generate a complete data profile
+        by reading data, generating content,
+        calling the LLM, and wrapping the response.
+
+        Returns:
+            Dictionary containing the complete data profile
+        """
         self.data = self._read_data()
         content = self._generate_content(self.prompt, self.data)
         # content = self.prompt.format(data=self.data)
@@ -40,6 +58,19 @@ class BaseDataProfiler(ABC):
 
     @staticmethod
     def _load_prompt_and_model(source_type: Any = None):
+        """Load the appropriate prompt template, model name and LLM API
+        class
+        based on the source type.
+
+        Args:
+            source_type: Type of data source (CSV, EXCEL, IMAGE, etc.)
+
+        Returns:
+            Tuple of (prompt_template, model_name, llm_api_class)
+
+        Raises:
+            ValueError: If source_type is unsupported
+        """
         PROFILE_PROMPT_BASE_PATH = os.path.join(
             os.path.dirname(__file__),
             "built_in_prompt",
@@ -83,6 +114,15 @@ class BaseDataProfiler(ABC):
 
     @staticmethod
     def tool_clean_json(raw_response: str):
+        """Clean and parse JSON response from LLM by removing markdown
+        markers.
+
+        Args:
+            raw_response: Raw string response from LLM
+
+        Returns:
+            Parsed JSON object from the cleaned response
+        """
         cleaned_response = raw_response.strip()
         if cleaned_response.startswith("```json"):
             cleaned_response = cleaned_response[len("```json") :].lstrip()
@@ -94,15 +134,32 @@ class BaseDataProfiler(ABC):
 
     @abstractmethod
     def _generate_content(self, prompt: str, data: Any) -> str:
-        pass
+        """Abstract method to generate content for LLM based on prompt
+        and data.
+
+        This method should be implemented by subclasses to format
+        content
+        appropriately for different data types.
+
+        Args:
+            prompt: Prompt template to use
+            data: Processed data to include in the prompt
+
+        Returns:
+            Formatted content for LLM call
+        """
 
     @abstractmethod
     def _read_data(self):
-        pass
+        """Abstract method to read and process data from the source path.
 
-    @abstractmethod
-    def _wrap_data_response(self, response: Dict[str, Any]) -> Dict[str, Any]:
-        pass
+        This method should be implemented by subclasses to handle
+        specific
+        data source types (CSV, Excel, DB, etc.).
+
+        Returns:
+            Processed data in appropriate format for the data type
+        """
 
     @retry(
         stop=stop_after_attempt(50),
@@ -116,15 +173,21 @@ class BaseDataProfiler(ABC):
         model: str = None,
         llm_api: BaseApi = None,
     ) -> Dict[str, Any]:
-        """
-        Uses an LLM to generate a profile based on the provided content.
+        """Uses LLM to generate profile based on the content.
+        Makes multiple attempts to call the LLM service,
+        with retry logic in case of failures.
+        Handles both regular text and multimodal inputs.
 
         Args:
-            content (str): The text content (e.g., schema description).
-            model (str): The model name to use for generation.
+            content: Content to send to the LLM (text or multimodal)
+            model: Model name to use (uses instance model if None)
+            llm_api: API class to use (uses instance API if None)
 
         Returns:
-            dict: The profiled metadata in dict format, parsed from LLM resp.
+            Dictionary response parsed from LLM output
+
+        Raises:
+            Exception: If all retry attempts fail
         """
         try:
             sys_message = {
@@ -167,13 +230,37 @@ class BaseDataProfiler(ABC):
             # Consider returning None or an empty dict on failure
             return {}
 
+    @abstractmethod
+    def _wrap_data_response(self, response: Dict[str, Any]) -> Dict[str, Any]:
+        """Abstract method to combine LLM response with original schema.
+
+        This method should be implemented by subclasses to properly
+        merge
+        LLM-generated descriptions with original data structure.
+
+        Args:
+            response: Dictionary response from LLM
+
+        Returns:
+            Combined dictionary with original schema and LLM response
+        """
+
 
 class StructuredDataProfiler(BaseDataProfiler):
-    def _generate_content(self, prompt: str, data: Any) -> str:
-        return prompt.format(data=data)
+    """Base class for profilers that work with structured data sources
+    like CSV, Excel, and relational databases.
+    """
 
     @staticmethod
     def is_irregular(cols: list[str]):
+        """Determine if a table has irregular column names (many unnamed).
+
+        Args:
+            cols: List of column names from the dataset
+
+        Returns:
+            Boolean indicating whether the dataset is irregular
+        """
         # any(col.startswith('Unnamed') for col in df.columns.astype(str))?
         unnamed_columns_ratio = sum(
             col.startswith("Unnamed") for col in cols.astype(str)
@@ -182,15 +269,17 @@ class StructuredDataProfiler(BaseDataProfiler):
 
     @staticmethod
     def _extract_schema_from_table(df: pd.DataFrame, df_name: str) -> dict:
-        """
-        Analyzes a single DataFrame to extract column metadata and samples.
+        """Analyzes a single DataFrame to extract metadata and samples.
+
+        Extracts column names, data types, and sample values to provide a
+        comprehensive view of the table structure for the LLM.
 
         Args:
-            df (pd.DataFrame): The dataframe to analyze.
-            table_name (str): Name of the table (or sheet/filename).
+            df: The dataframe to analyze
+            df_name: Name of the table (or sheet/filename)
 
         Returns:
-            dict: Schema metadata for the table.
+            Dictionary containing schema metadata for the table
         """
         col_list = []
         for col in df.columns:
@@ -235,9 +324,29 @@ class StructuredDataProfiler(BaseDataProfiler):
         }
         return table_schema
 
-    def _wrap_data_response(self, response: Dict[str, Any]) -> Dict[str, Any]:
+    def _generate_content(self, prompt: str, data: Any) -> str:
+        """Format the prompt with data for structured data sources.
+
+        Args:
+            prompt: Template prompt string
+            data: Processed data structure
+
+        Returns:
+            Formatted content string ready for LLM
         """
-        Merges the original schema with the LLM-generated response.
+        return prompt.format(data=data)
+
+    def _wrap_data_response(self, response: Dict[str, Any]) -> Dict[str, Any]:
+        """Merges the original schema with the LLM-generated response.
+
+        Combines the structural information from the original data with
+        semantic descriptions generated by the LLM.
+
+        Args:
+            response: Dictionary response from LLM with descriptions
+
+        Returns:
+            Combined schema with both structural and semantic info
         """
         new_schema = {}
         new_schema["name"] = self.data["name"]
@@ -269,41 +378,71 @@ class StructuredDataProfiler(BaseDataProfiler):
         return new_schema
 
 
-class ImageProfiler(BaseDataProfiler):
-    def __init__(self, api_key, path, source_type):
-        super().__init__(api_key, path, source_type)
-        self.file_name = os.path.basename(self.path)
-
-    def _generate_content(self, prompt, data):
-        contents = []
-        # Convert image paths according to the model requirements
-        contents.append(
-            {
-                "image": data,
-            },
-        )
-        # append text
-        contents.append({"text": prompt})
-        return contents
-
-    def _read_data(self):
-        return self.path
-
-    def _wrap_data_response(self, response: Dict[str, Any]) -> Dict[str, Any]:
-        profile = {
-            "name": self.file_name,
-            "description": response["description"],
-            "details": response["details"],
-        }
-        return profile
-
-
 class ExcelProfiler(StructuredDataProfiler):
-    def __init__(self, api_key, path, source_type):
+    def __init__(self, api_key: str, path: str, source_type: SourceType):
         super().__init__(api_key, path, source_type)
         self.file_name = os.path.basename(self.path)
 
+    def _extract_irregular_table(
+        self,
+        path: str,
+        raw_data_snippet: str,
+        sheet_name: str,
+    ):
+        """Extract structure from irregular Excel sheets with unnamed
+        columns. Uses a special LLM call to identify the actual data in
+        sheets with headers or other content above the main data table.
+
+        Args:
+            path: Path to the Excel file
+            raw_data_snippet: Raw text snippet of the sheet content
+            sheet_name: Name of the sheet being processed
+
+        Returns:
+            Schema dictionary for the irregular table structure
+        """
+        prompt, model, llm_api = self._load_prompt_and_model("IRREGULAR")
+        content = prompt.format(raw_snippet_data=raw_data_snippet)
+        res = self._call_model(content=content, model=model, llm_api=llm_api)
+
+        print(res["reasoning"])
+        if res["is_extractable_table"]:
+            skiprows = res["row_start_index"] + 1
+            cols_range = res["col_ranges"]
+            df = pd.read_excel(
+                path,
+                sheet_name=sheet_name,
+                nrows=100,
+                skiprows=skiprows,
+                usecols=range(cols_range[0], cols_range[1] + 1),
+            ).convert_dtypes()
+            if StructuredDataProfiler.is_irregular(df.columns):
+                schema = {
+                    "name": sheet_name,
+                    "raw_data_snippet": raw_data_snippet,
+                    "irregular_judgment": "UNSTRUCTURED",
+                }
+            else:
+                schema = self._extract_schema_from_table(df, sheet_name)
+                schema["irregular_judgment"] = res
+        else:
+            schema = {
+                "name": sheet_name,
+                "raw_data_snippet": raw_data_snippet,
+                "irregular_judgment": "UNSTRUCTURED",
+            }
+
+        return schema
+
     def _read_data(self):
+        """Read and process Excel file data including all sheets.
+
+        Handles both regular and irregular Excel files by using pandas
+        for regular files and openpyxl for files with unnamed columns.
+
+        Returns:
+            Dictionary containing metadata for all sheets in the Excel file
+        """
         excel_file = pd.ExcelFile(self.path)
         table_schemas = []
         schema = {}
@@ -361,56 +500,17 @@ class ExcelProfiler(StructuredDataProfiler):
         schema["tables"] = table_schemas
         return schema
 
-    def _extract_irregular_table(
-        self,
-        path: str,
-        raw_data_snippet: str,
-        sheet_name: str,
-    ):
-        prompt, model, llm_api = self._load_prompt_and_model("IRREGULAR")
-        content = prompt.format(raw_snippet_data=raw_data_snippet)
-        res = self._call_model(content=content, model=model, llm_api=llm_api)
-
-        print(res["reasoning"])
-        if res["is_extractable_table"]:
-            skiprows = res["row_start_index"] + 1
-            cols_range = res["col_ranges"]
-            df = pd.read_excel(
-                path,
-                sheet_name=sheet_name,
-                nrows=100,
-                skiprows=skiprows,
-                usecols=range(cols_range[0], cols_range[1] + 1),
-            ).convert_dtypes()
-            if StructuredDataProfiler.is_irregular(df.columns):
-                schema = {
-                    "name": sheet_name,
-                    "raw_data_snippet": raw_data_snippet,
-                    "irregular_judgment": "UNSTRUCTURED",
-                }
-            else:
-                schema = self._extract_schema_from_table(df, sheet_name)
-                schema["irregular_judgment"] = res
-        else:
-            schema = {
-                "name": sheet_name,
-                "raw_data_snippet": raw_data_snippet,
-                "irregular_judgment": "UNSTRUCTURED",
-            }
-
-        return schema
-
 
 class RelationalDatabaseProfiler(StructuredDataProfiler):
     def _read_data(self):
         """
         Extracts metadata (schema) for all tables in a relational db.
-        Args:
-            dsn (str): The Database Source Name (connection string).
-            eg. postgresql://user:passward@ip:port/db_name
+
+        path (str): The Database Source Name (connection string).
+        eg. postgresql://user:passward@ip:port/db_name
+
         Returns:
-            dict: A JSON-compatible dictionary containing database metadata
-                    (table names, columns, row counts, samples).
+            Dictionary containing database metadata for all tables
         """
         options = {
             "isolation_level": "AUTOCOMMIT",
@@ -524,14 +624,18 @@ class RelationalDatabaseProfiler(StructuredDataProfiler):
 
 
 class CsvProfiler(ExcelProfiler):
-    def __init__(self, api_key, path, source_type):
+    def __init__(self, api_key: str, path: str, source_type: SourceType):
         super().__init__(api_key, path, source_type)
         self.file_name = os.path.basename(path)
 
     def _read_data(self):
-        """
-        Handlers schema extraction for CSV files.
-        Treats the CSV as a single table.
+        """Handles schema extraction for CSV as single-table sources.
+
+        Uses Polars for efficient row counting on large files and
+        pandas for detailed schema analysis of the first 100 rows.
+
+        Returns:
+            Schema dictionary for the CSV file
         """
         import polars as pl
 
@@ -547,15 +651,88 @@ class CsvProfiler(ExcelProfiler):
         return schema
 
 
+class ImageProfiler(BaseDataProfiler):
+    """Profiler for image data sources that uses multimodal LLMs."""
+
+    def __init__(self, api_key: str, path: str, source_type: SourceType):
+        super().__init__(api_key, path, source_type)
+        self.file_name = os.path.basename(self.path)
+
+    def _read_data(self):
+        """
+        For images, this simply returns the path since the LLM API
+        handles loading the image directly.
+
+        Returns:
+            Path to the image file
+        """
+        return self.path
+
+    def _generate_content(self, prompt, data):
+        """Generate multimodal content for image analysis.
+
+        Creates content in the format required by multimodal LLM APIs
+        with both image and text components.
+
+        Args:
+            prompt: Text prompt template for image analysis
+            data: Path to the image file
+
+        Returns:
+            List containing image and text components for the LLM call
+        """
+        contents = []
+        # Convert image paths according to the model requirements
+        contents.append(
+            {
+                "image": data,
+            },
+        )
+        # append text
+        contents.append({"text": prompt})
+        return contents
+
+    def _wrap_data_response(self, response: Dict[str, Any]) -> Dict[str, Any]:
+        """Format the LLM response for image data into dict.
+
+        Args:
+            response: Dictionary response from multimodal LLM
+
+        Returns:
+            Profile dictionary with image name, description and details
+        """
+        profile = {
+            "name": self.file_name,
+            "description": response["description"],
+            "details": response["details"],
+        }
+        return profile
+
+
 class DataProfilerFactory:
+    """Factory class to create appropriate data profiler instances based
+    on source type.
+    """
+
     @staticmethod
     def get_profiler(
         api_key: str,
         path: str,
         source_type: SourceType,
     ) -> BaseDataProfiler:
-        """
-        Factory method to get the appropriate profiler
+        """Factory method to get the appropriate profiler instance.
+        Generate the correct profile result for the source.
+
+        Args:
+            api_key: Authentication key for LLM service
+            path: Path to the data source or connection string
+            source_type: Enum indicating the type of data source
+
+        Returns:
+            Instance of the appropriate profiler subclass
+
+        Raises:
+            ValueError: If the source_type is unsupported
         """
         if source_type == SourceType.IMAGE:
             return ImageProfiler(api_key, path, source_type)
