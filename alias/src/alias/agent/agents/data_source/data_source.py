@@ -58,9 +58,8 @@ class DataSource:
         self.endpoint = endpoint
         self.name = name
 
-        source_access_type = SOURCE_TYPE_TO_ACCESS_TYPE.get(source_type)
-        if source_access_type is None:
-            raise ValueError("Invalid access type")
+        source_access_type = SOURCE_TYPE_TO_ACCESS_TYPE.get(source_type, \
+            SourceAccessType.DIRECT)
 
         self.source_access_type = source_access_type
         self.source_type = source_type
@@ -454,7 +453,7 @@ class DataSourceManager:
         # Check for file extensions
         if endpoint_lower.endswith(".csv"):
             source_type = SourceType.CSV
-        elif endpoint_lower.endswith((".xls", ".xlsx")):
+        elif endpoint_lower.endswith((".xls", ".xlsx", "xlsm")):
             source_type = SourceType.EXCEL
         elif endpoint_lower.endswith(".json"):
             source_type = SourceType.JSON

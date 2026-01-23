@@ -407,7 +407,7 @@ class RelationalDatabaseProfiler(StructuredDataProfiler):
         Extracts metadata (schema) for all tables in a relational db.
         Args:
             dsn (str): The Database Source Name (connection string).
-            eg. postgresql://user:XB6FqqgHk26h@47.238.87.81:49166/dacomp_001
+            eg. postgresql://user:passward@ip:port/db_name
         Returns:
             dict: A JSON-compatible dictionary containing database metadata
                     (table names, columns, row counts, samples).
