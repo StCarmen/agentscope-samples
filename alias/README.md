@@ -207,10 +207,10 @@ alias_agent run --mode finance --task "Analyze Tesla's Q4 2024 financial perform
 # Data Science mode
 alias_agent run --mode ds \
   --task "Analyze the distribution of incidents across categories in 'incident_records.csv' to identify imbalances, inconsistencies, or anomalies, and determine their root cause." \
-  --files ./docs/data/incident_records.csv
+  --datasource ./docs/data/incident_records.csv
 ```
 
-**Note**: Files uploaded with `--files` are automatically copied to `/workspace` in the sandbox. Generated files are available in `sessions_mount_dir` subdirectories.
+**Note**: Files uploaded with `--datasource` are automatically copied to `/workspace` in the sandbox. Generated files are available in `sessions_mount_dir` subdirectories.
 
 #### Enable Long-Term Memory Service (General Mode Only)
 To enable the long-term memory service in General mode, you need to:
