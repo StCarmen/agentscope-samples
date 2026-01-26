@@ -208,10 +208,10 @@ alias_agent run --mode finance --task "Analyze Tesla's Q4 2024 financial perform
 # 数据科学（Data Science）模式
 alias_agent run --mode ds \
   --task "Analyze the distribution of incidents across categories in 'incident_records.csv' to identify imbalances, inconsistencies, or anomalies, and determine their root cause." \
-  --files ./docs/data/incident_records.csv
+  --datasource ./docs/data/incident_records.csv
 ```
 
-**注意**：使用 `--files` 上传的文件会自动复制到沙盒中的 `/workspace`。生成的文件可在 `sessions_mount_dir` 的子目录中找到。
+**注意**：使用 `--datasource` 上传的文件会自动复制到沙盒中的 `/workspace`。生成的文件可在 `sessions_mount_dir` 的子目录中找到。
 
 #### 启用长期记忆服务（仅限通用模式）
 要在通用模式下启用长期记忆服务，您需要：

@@ -440,16 +440,13 @@ class DataScienceAgent(AliasAgentBase):
             report_md,
             report_html,
         ) = await report_generator.generate_report()
-        md_report_path = os.path.join(
-            self.tmp_file_storage_dir,
-            "detailed_report.md",
-        )
-        html_report_path = os.path.join(
-            self.tmp_file_storage_dir,
-            "detailed_report.html",
-        )
 
-        if report_html:
+        if report_md:
+            md_report_path = os.path.join(
+                self.tmp_file_storage_dir,
+                "detailed_report.md",
+            )
+
             await self.toolkit.call_tool_function(
                 ToolUseBlock(
                     type="tool_use",
@@ -461,24 +458,34 @@ class DataScienceAgent(AliasAgentBase):
                     },
                 ),
             )
-            await self.toolkit.call_tool_function(
-                ToolUseBlock(
-                    type="tool_use",
-                    id=str(uuid.uuid4()),
-                    name="write_file",
-                    input={
-                        "path": html_report_path,
-                        "content": report_html,
-                    },
-                ),
-            )
             response = (
                 f"{response}\n\n"
                 "The detailed report (markdown version) has been saved to "
-                f"{md_report_path}.\n"
-                "The detailed report (html version) has been saved to "
-                f"{html_report_path}."
+                f"{md_report_path}."
             )
+
+            if report_html:
+                html_report_path = os.path.join(
+                    self.tmp_file_storage_dir,
+                    "detailed_report.html",
+                )
+
+                await self.toolkit.call_tool_function(
+                    ToolUseBlock(
+                        type="tool_use",
+                        id=str(uuid.uuid4()),
+                        name="write_file",
+                        input={
+                            "path": html_report_path,
+                            "content": report_html,
+                        },
+                    ),
+                )
+                response = (
+                    f"{response}\n\n"
+                    "The detailed report (html version) has been saved to "
+                    f"{html_report_path}."
+                )
 
         kwargs["response"] = response
         structured_output = {}
