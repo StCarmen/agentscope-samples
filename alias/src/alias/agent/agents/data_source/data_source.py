@@ -118,7 +118,7 @@ class DataSource:
                     )
 
             self.source_access = target_path
-            self.profile = self._get_profile(toolkit.sandbox)
+            self.profile = await self._get_profile(toolkit.sandbox)
 
             self.source_desc = "Local file"
             self.source_access_desc = f"Access at path: `{target_path}`"
@@ -134,7 +134,7 @@ class DataSource:
                 raise ValueError("Register server one by one!")
 
             self.source_access = self.endpoint
-            self.profile = self._get_profile(toolkit.sandbox)
+            self.profile = await self._get_profile(toolkit.sandbox)
 
             mcp_server_name = list(mcp_server_name)[0]
             server_config = server_config[mcp_server_name]
@@ -179,17 +179,21 @@ class DataSource:
             + f"{self._general_profile()}"
         )
 
-    def _get_profile(self, sandbox) -> Optional[Dict[str, Any]]:
+    async def _get_profile(self, sandbox) -> Optional[Dict[str, Any]]:
         """Run type-specific profiling."""
         if not self.profile:
             try:
-                self.profile = data_profile(
+                self.profile = await data_profile(
                     sandbox,
                     self.source_access,
                     self.source_type,
                 )
+                logger.info(
+                    "Profiling successfully: "
+                    + f"{self._general_profile()[:100]}...",
+                )
             except Exception as e:
-                self.profile = {}
+                self.profile = None
                 logger.error(f"Error when profile data: {e}")
 
         return self.profile
