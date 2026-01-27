@@ -274,7 +274,7 @@ class DataSourceManager:
                 )
 
             endpoint = config["endpoint"]
-            conn_config = config.get("mcp_server")
+            conn_config = config
 
         sources = set()
         if os.path.isdir(endpoint):

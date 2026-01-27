@@ -276,16 +276,23 @@ def main():
 
     run_parser.add_argument(
         "--datasource",
-        "-ds",
+        "--files",
+        "-d",
+        dest="datasource",
         nargs="+",
         help=(
             "Data sources for the agent to use. Multiple formats supported:\n"
             "  • Local files: ./data.txt, /absolute/path/file.json\n"
             "  • Databases: postgresql://localhost/db, sqlite:///data.db\n"
-            "Example: --data file.txt postgresql://localhost/db"
+            "Example: "
+            "    --datasource file.txt postgresql://localhost/db\n"
+            "    --files file.txt"
         ),
     )
 
+    # If you need to deeply customize your data source
+    # (e.g., specify an MCP server), use this parameter to
+    # provide a configuration file
     run_parser.add_argument(
         "--dataconfig",
         "-dc",

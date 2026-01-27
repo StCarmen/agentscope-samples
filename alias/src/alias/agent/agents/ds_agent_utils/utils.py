@@ -5,9 +5,9 @@ import json
 from typing import Union
 from agentscope.message import Msg
 from tenacity import retry, stop_after_attempt, wait_fixed
-from .ds_config import PROMPT_DS_BASE_PATH
 
-MODEL_MAX_RETRIES = 50
+from alias.agent.utils.constants import MODEL_MAX_RETRIES
+from .ds_config import PROMPT_DS_BASE_PATH
 
 
 def get_prompt_from_file(
