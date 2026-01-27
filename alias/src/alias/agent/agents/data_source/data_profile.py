@@ -32,7 +32,10 @@ def _get_binary_buffer(
     return buffer
 
 
-def _copy_file_from_sandbox(sandbox: AliasSandbox, file_path: str) -> str:
+def _copy_file_from_sandbox_with_original_name(
+    sandbox: AliasSandbox,
+    file_path: str,
+) -> str:
     """
     Copies a file from the sandbox environment
     or a URL to a local temporary file.
@@ -61,7 +64,7 @@ def _copy_file_from_sandbox(sandbox: AliasSandbox, file_path: str) -> str:
         with open(full_path, "wb") as f:
             f.write(file_buffer.getvalue())
         file_source = full_path
-    return file_source
+    return str(file_source)
 
 
 async def data_profile(
@@ -87,7 +90,10 @@ async def data_profile(
     """
 
     if source_type in [SourceType.CSV, SourceType.EXCEL, SourceType.IMAGE]:
-        local_path = _copy_file_from_sandbox(sandbox, sandbox_path)
+        local_path = _copy_file_from_sandbox_with_original_name(
+            sandbox,
+            sandbox_path,
+        )
     elif source_type == SourceType.RELATIONAL_DB:
         local_path = sandbox_path
     else:

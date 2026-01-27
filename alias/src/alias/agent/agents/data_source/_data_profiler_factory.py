@@ -5,6 +5,8 @@ import os
 import json
 from abc import ABC, abstractmethod
 from typing import Any, Dict
+
+from loguru import logger
 import pandas as pd
 from sqlalchemy import inspect, text, create_engine
 from agentscope.message import Msg
@@ -59,7 +61,7 @@ class BaseDataProfiler(ABC):
             res = await self._call_model(content)
             self.profile = self._wrap_data_response(res)
         except Exception as e:
-            print(f"Error generating profile: {e}")
+            logger.warning(f"Error generating profile: {e}")
             self.profile = {}
         return self.profile
 
@@ -101,9 +103,6 @@ class BaseDataProfiler(ABC):
             SourceType.RELATIONAL_DB: MODEL_CONFIG_NAME,
             "IRREGULAR": MODEL_CONFIG_NAME,
         }
-
-        if not api_key:
-            api_key = os.environ.get("DASHSCOPE_API_KEY")
 
         models_2_model_and_formatter = {
             MODEL_CONFIG_NAME: [
@@ -360,16 +359,19 @@ class StructuredDataProfiler(BaseDataProfiler):
         # they contain tables. Each table contains columns and description
         if "tables" in self.data and "tables" in response:
             new_schema["tables"] = []
-            for i, table in enumerate(self.data["tables"]):
-                # Ensure alignment between schema tables and resp tables
-                # TODO: It matches by order, by name would be more robust.
-                if i >= len(response["tables"]):
-                    # LLM returns less tables than the original schema
-                    break
-                assert response["tables"][i]["name"] == table["name"]
+            # Build a map for response tables and descriptions
+            res_des_map = {
+                table["name"]: table["description"]
+                for table in response["tables"]
+            }
+            for table in self.data["tables"]:
+                table_name = table["name"]
+                if table_name not in res_des_map:
+                    continue
                 new_table = {}
-                new_table["name"] = table["name"]
-                new_table["description"] = response["tables"][i]["description"]
+                new_table["name"] = table_name
+                # Retain the desrciption from the LLM response
+                new_table["description"] = res_des_map[table_name]
                 if "columns" in table:
                     new_table["columns"] = table["columns"]
                 if "irregular_judgment" in table:
@@ -412,7 +414,7 @@ class ExcelProfiler(StructuredDataProfiler):
         )
 
         if "is_extractable_table" in res and res["is_extractable_table"]:
-            print(res["reasoning"])
+            logger.debug(res["reasoning"])
             skiprows = res["row_start_index"] + 1
             cols_range = res["col_ranges"]
             df = pd.read_excel(
@@ -533,7 +535,7 @@ class RelationalDatabaseProfiler(StructuredDataProfiler):
         try:
             connection = engine.connect()
         except Exception as e:
-            print(f"Connection to {self.path} failed: {e}")
+            logger.error(f"Connection to {self.path} failed: {e}")
             raise ConnectionError(f"Failed to connect to database: {e}") from e
 
         # Use DSN as the db identifier (can parsed cleaner)
@@ -581,7 +583,9 @@ class RelationalDatabaseProfiler(StructuredDataProfiler):
                             lines.append(", ".join(row_values))
                         raw_data_snippet = "\n".join(lines)
                 except Exception as e:
-                    print(f"Error fetching {table_name} data: {str(e)}")
+                    logger.warning(
+                        f"Error fetching {table_name} data: {str(e)}",
+                    )
                     raw_data_snippet = None
                 # 4. detailed column info (types and samples)
                 column_details = []
@@ -618,8 +622,8 @@ class RelationalDatabaseProfiler(StructuredDataProfiler):
 
             except Exception as e:
                 # If one table fails, log it and continue to the next
-                print(f"Error processing {table_name}: {str(e)}")
-                return {}
+                logger.warning(f"Error processing {table_name}: {str(e)}")
+                continue
         # Contruct the final schema
         schema = {
             "name": database_name,
@@ -687,15 +691,20 @@ class ImageProfiler(BaseDataProfiler):
         Returns:
             List containing image and text components for the LLM call
         """
-        contents = []
         # Convert image paths according to the model requirements
-        contents.append(
+        contents = [
             {
-                "image": data,
+                "text": prompt,
+                "type": "text",
             },
-        )
-        # append text
-        contents.append({"text": prompt})
+            {
+                "source": {
+                    "url": data,
+                    "type": "url",
+                },
+                "type": "image",
+            },
+        ]
         return contents
 
     def _wrap_data_response(self, response: Dict[str, Any]) -> Dict[str, Any]:
