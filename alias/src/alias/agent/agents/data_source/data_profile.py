@@ -90,6 +90,8 @@ async def data_profile(
         local_path = _copy_file_from_sandbox(sandbox, sandbox_path)
     elif source_type == SourceType.RELATIONAL_DB:
         local_path = sandbox_path
+    else:
+        raise ValueError(f"Unsupported source type: {source_type}")
 
     dashscope_api_key = os.getenv("DASHSCOPE_API_KEY", "")
 

@@ -192,6 +192,9 @@ class DataSource:
                     "Profiling successfully: "
                     + f"{self._general_profile()[:100]}...",
                 )
+            except ValueError as e:
+                self.profile = None
+                logger.warning(f"Warning when profile data: {e}")
             except Exception as e:
                 self.profile = None
                 logger.error(f"Error when profile data: {e}")
