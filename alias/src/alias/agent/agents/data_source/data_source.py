@@ -138,11 +138,20 @@ class DataSource:
 
             mcp_server_name = list(mcp_server_name)[0]
             server_config = server_config[mcp_server_name]
+
+            cmd = server_config.get("command")
+            args = server_config.get("args")
+            if cmd is None or args is None:
+                raise ValueError(
+                    "MCP server configuration requires non-empty "
+                    "`command` and `args` fields to start!",
+                )
+
             client = StdIOStatefulClient(
                 self.name,
-                command=server_config["command"],
-                args=server_config["args"],
-                env=server_config["env"],
+                command=cmd,
+                args=args,
+                env=server_config.get("env"),
             )
 
             text_hook = TextPostHook(
