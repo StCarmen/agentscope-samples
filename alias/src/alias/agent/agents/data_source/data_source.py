@@ -3,12 +3,9 @@
 
 import os
 import json
-
 from pathlib import Path
 from typing import Dict, Any, Optional, List
-
 import yaml
-
 from loguru import logger
 
 from agentscope.mcp import StdIOStatefulClient
@@ -20,13 +17,15 @@ from alias.agent.agents.data_source._typing import (
     SourceAccessType,
     SourceType,
 )
-
 from alias.agent.agents.data_source.data_profile import data_profile
 from alias.agent.agents.data_source.utils import replace_placeholders
 from alias.agent.tools.toolkit_hooks.text_post_hook import TextPostHook
 from alias.agent.tools.alias_toolkit import AliasToolkit
 from alias.agent.tools.sandbox_util import (
     copy_local_file_to_workspace,
+)
+from alias.agent.utils.unified_model_call_interface import (
+    UnifiedModelCallInterface,
 )
 
 
@@ -118,8 +117,6 @@ class DataSource:
                     )
 
             self.source_access = target_path
-            self.profile = await self._get_profile(toolkit.sandbox)
-
             self.source_desc = "Local file"
             self.source_access_desc = f"Access at path: `{target_path}`"
 
@@ -132,9 +129,6 @@ class DataSource:
 
             if len(mcp_server_name) != 1:
                 raise ValueError("Register server one by one!")
-
-            self.source_access = self.endpoint
-            self.profile = await self._get_profile(toolkit.sandbox)
 
             mcp_server_name = list(mcp_server_name)[0]
             server_config = server_config[mcp_server_name]
@@ -170,6 +164,7 @@ class DataSource:
                 )
             ]
 
+            self.source_access = self.endpoint
             self.source_desc = f"{self.source_type}"
             self.source_access_desc = (
                 f"Access via MCP tools: [{', '.join(registered_tools)}]"
@@ -188,14 +183,19 @@ class DataSource:
             + f"{self._general_profile()}"
         )
 
-    async def _get_profile(self, sandbox) -> Optional[Dict[str, Any]]:
+    async def prepare_profile(
+        self,
+        sandbox: Sandbox,
+        model_interface: UnifiedModelCallInterface,
+    ) -> Optional[Dict[str, Any]]:
         """Run type-specific profiling."""
-        if not self.profile:
+        if model_interface and not self.profile:
             try:
                 self.profile = await data_profile(
-                    sandbox,
-                    self.source_access,
-                    self.source_type,
+                    sandbox=sandbox,
+                    sandbox_path=self.source_access,
+                    source_type=self.source_type,
+                    model_interface=model_interface,
                 )
                 logger.info(
                     "Profiling successfully: "
@@ -249,7 +249,11 @@ class DataSourceManager:
         "_default_config.json",
     )
 
-    def __init__(self, sandbox: Sandbox):
+    def __init__(
+        self,
+        sandbox: Sandbox,
+        model_interface: UnifiedModelCallInterface,
+    ):
         """Initialize an empty data source manager."""
         self._data_sources: Dict[str, DataSource] = {}
         self._type_defaults = {}
@@ -260,6 +264,8 @@ class DataSourceManager:
         self.selected_skills = None
 
         self.toolkit = AliasToolkit(sandbox=sandbox)
+
+        self.model_interface = model_interface
 
     def add_data_source(
         self,
@@ -330,6 +336,10 @@ class DataSourceManager:
         all_data_sources = self._data_sources.values()
         for data_source in all_data_sources:
             await data_source.prepare(self.toolkit)
+            await data_source.prepare_profile(
+                self.toolkit.sandbox,
+                self.model_interface,
+            )
 
     def _generate_name(self, endpoint: str) -> str:
         """

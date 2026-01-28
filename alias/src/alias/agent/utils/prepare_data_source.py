@@ -5,6 +5,9 @@ from agentscope_runtime.sandbox.box.sandbox import Sandbox
 
 from alias.agent.agents.data_source.data_source import DataSourceManager
 from alias.agent.tools import AliasToolkit, share_tools
+from alias.agent.utils.unified_model_call_interface import (
+    UnifiedModelCallInterface,
+)
 
 if os.getenv("TEST_MODE") not in ["local", "runtime-test"]:
     from alias.server.services.session_service import (
@@ -18,8 +21,13 @@ async def prepare_data_sources(
     session_service: SessionService,
     sandbox: Sandbox,
     binded_toolkit: AliasToolkit = None,
+    model_interface: UnifiedModelCallInterface = None,
 ):
-    data_manager = await build_data_manager(session_service, sandbox)
+    data_manager = await build_data_manager(
+        session_service,
+        sandbox,
+        model_interface,
+    )
     if len(data_manager):
         await add_user_data_message(session_service, data_manager)
 
@@ -32,8 +40,9 @@ async def prepare_data_sources(
 async def build_data_manager(
     session_service: SessionService,
     sandbox: Sandbox,
+    model_interface: UnifiedModelCallInterface,
 ):
-    data_manager = DataSourceManager(sandbox)
+    data_manager = DataSourceManager(sandbox, model_interface)
     if (
         hasattr(session_service.session_entity, "data_config")
         and session_service.session_entity.data_config

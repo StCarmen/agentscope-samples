@@ -43,6 +43,9 @@ from alias.agent.agents._data_science_agent import (
     init_ds_toolkit,
 )
 
+from alias.agent.utils.unified_model_call_interface import (
+    UnifiedModelCallInterface,
+)
 
 MODEL_FORMATTER_MAPPING = {
     "qwen3-max": [
@@ -113,7 +116,16 @@ async def arun_meta_planner(
     ds_toolkit = init_ds_toolkit(worker_full_toolkit)
 
     # Initialize data source manager
-    data_manager = await prepare_data_sources(session_service, sandbox)
+    model_interface = UnifiedModelCallInterface(
+        base_model_name=MODEL_CONFIG_NAME,
+        vl_model_name=VL_MODEL_NAME,
+        model_formatter_mapping=MODEL_FORMATTER_MAPPING,
+    )
+    data_manager = await prepare_data_sources(
+        session_service=session_service,
+        sandbox=sandbox,
+        model_interface=model_interface,
+    )
     add_data_source_tools(
         data_manager,
         worker_full_toolkit,
@@ -350,10 +362,16 @@ async def arun_datascience_agent(
 
     global_toolkit = AliasToolkit(sandbox, add_all=True)
     worker_toolkit = init_ds_toolkit(global_toolkit)
+    model_interface = UnifiedModelCallInterface(
+        base_model_name=MODEL_CONFIG_NAME,
+        vl_model_name=VL_MODEL_NAME,
+        model_formatter_mapping=MODEL_FORMATTER_MAPPING,
+    )
     data_manager = await prepare_data_sources(
-        session_service,
-        sandbox,
-        worker_toolkit,
+        session_service=session_service,
+        sandbox=sandbox,
+        binded_toolkit=worker_toolkit,
+        model_interface=model_interface,
     )
 
     try:

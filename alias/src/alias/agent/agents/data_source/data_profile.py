@@ -15,6 +15,9 @@ from alias.agent.tools.sandbox_util import (
     get_workspace_file,
 )
 from alias.runtime.alias_sandbox.alias_sandbox import AliasSandbox
+from alias.agent.utils.unified_model_call_interface import (
+    UnifiedModelCallInterface,
+)
 
 
 def _get_binary_buffer(
@@ -71,6 +74,7 @@ async def data_profile(
     sandbox: AliasSandbox,
     sandbox_path: str,
     source_type: SourceType,
+    model_interface: UnifiedModelCallInterface,
 ) -> Dict[str, Any]:
     """
     Generates a detailed profile and summary for data source using LLMs.
@@ -97,12 +101,10 @@ async def data_profile(
     elif source_type == SourceType.RELATIONAL_DB:
         local_path = sandbox_path
     else:
-        raise ValueError(f"Unsupported source type: {source_type}")
-
-    dashscope_api_key = os.getenv("DASHSCOPE_API_KEY", "")
+        raise ValueError(f"Unsupported source type {source_type}")
 
     profiler = DataProfilerFactory.get_profiler(
-        api_key=dashscope_api_key,
+        model_interface=model_interface,
         path=local_path,
         source_type=source_type,
     )

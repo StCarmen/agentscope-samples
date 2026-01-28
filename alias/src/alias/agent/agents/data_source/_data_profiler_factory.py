@@ -9,18 +9,12 @@ from typing import Any, Dict
 from loguru import logger
 import pandas as pd
 from sqlalchemy import inspect, text, create_engine
-from agentscope.message import Msg
-from agentscope.model import DashScopeChatModel
-from agentscope.formatter import DashScopeChatFormatter
-
 from alias.agent.agents.data_source._typing import SourceType
-from alias.agent.agents.ds_agent_utils.ds_config import (
-    MODEL_CONFIG_NAME,
-    VL_MODEL_NAME,
-)
 from alias.agent.agents.ds_agent_utils import (
     get_prompt_from_file,
-    model_call_with_retry,
+)
+from alias.agent.utils.unified_model_call_interface import (
+    UnifiedModelCallInterface,
 )
 
 
@@ -29,7 +23,17 @@ class BaseDataProfiler(ABC):
     sources like csv, excel, db, etc.
     """
 
-    def __init__(self, api_key: str, path: str, source_type: SourceType):
+    _PROFILE_PROMPT_BASE_PATH = os.path.join(
+        os.path.dirname(__file__),
+        "built_in_prompt",
+    )
+
+    def __init__(
+        self,
+        path: str,
+        source_type: SourceType,
+        model_interface: UnifiedModelCallInterface,
+    ):
         """Initialize the data profiler with API key, data path and type.
 
         Args:
@@ -37,14 +41,43 @@ class BaseDataProfiler(ABC):
             path: Path to the data source file or connection string
             source_type: Enum indicating the type of data source
         """
-        self.api_key = api_key
         self.path = path
+        self.file_name = os.path.basename(path)
         self.source_type = source_type
-        (
-            self.prompt,
-            self.model,
-            self.formatter,
-        ) = BaseDataProfiler._load_prompt_and_model(source_type)
+        self.model_interface = model_interface
+
+        self.source_types_2_prompts = {
+            SourceType.CSV: "_profile_csv_prompt.md",
+            SourceType.EXCEL: "_profile_xlsx_prompt.md",
+            SourceType.IMAGE: "_profile_image_prompt.md",
+            SourceType.RELATIONAL_DB: "_profile_relationdb_prompt.md",
+            "IRREGULAR": "_profile_irregular_xlsx_prompt.md",
+        }
+        if source_type not in self.source_types_2_prompts:
+            raise ValueError(f"Unsupported source type: {source_type}")
+        self.prompt = self._load_prompt(source_type)
+
+        base_model_name = self.model_interface.get_base_model_name()
+        vl_model_name = self.model_interface.get_vl_model_name()
+
+        self.source_types_2_models = {
+            SourceType.CSV: base_model_name,
+            SourceType.EXCEL: base_model_name,
+            SourceType.IMAGE: vl_model_name,
+            SourceType.RELATIONAL_DB: base_model_name,
+        }
+        self.model_name = self.source_types_2_models[source_type]
+
+    def _load_prompt(self, source_type: Any = None):
+        prompt_file_name = self.source_types_2_prompts[source_type]
+        prompt = get_prompt_from_file(
+            os.path.join(
+                self._PROFILE_PROMPT_BASE_PATH,
+                prompt_file_name,
+            ),
+            False,
+        )
+        return prompt
 
     async def generate_profile(self) -> Dict[str, Any]:
         """Generate a complete data profile
@@ -56,7 +89,11 @@ class BaseDataProfiler(ABC):
         """
         try:
             self.data = await self._read_data()
-            content = self._generate_content(self.prompt, self.data)
+            # different source types have different data building methods
+            content = self._build_content_with_prompt_and_data(
+                self.prompt,
+                self.data,
+            )
             # content = self.prompt.format(data=self.data)
             res = await self._call_model(content)
             self.profile = self._wrap_data_response(res)
@@ -64,77 +101,6 @@ class BaseDataProfiler(ABC):
             logger.warning(f"Error generating profile: {e}")
             self.profile = {}
         return self.profile
-
-    @staticmethod
-    def _load_prompt_and_model(source_type: Any = None, api_key: str = None):
-        """Load the appropriate prompt template, model name and LLM API
-        class
-        based on the source type.
-
-        Args:
-            source_type: Type of data source (CSV, EXCEL, IMAGE, etc.)
-
-        Returns:
-            Tuple of (prompt_template, model, formatter)
-
-        Raises:
-            ValueError: If source_type is unsupported
-        """
-        PROFILE_PROMPT_BASE_PATH = os.path.join(
-            os.path.dirname(__file__),
-            "built_in_prompt",
-        )
-        source_types_2_prompts = {
-            SourceType.CSV: "_profile_csv_prompt.md",
-            SourceType.EXCEL: "_profile_xlsx_prompt.md",
-            SourceType.IMAGE: "_profile_image_prompt.md",
-            SourceType.RELATIONAL_DB: "_profile_relationdb_prompt.md",
-            "IRREGULAR": "_profile_irregular_xlsx_prompt.md",
-        }
-
-        # For irregular excel files, load the prompt
-        if source_type not in source_types_2_prompts:
-            raise ValueError(f"Unsupported source type: {source_type}")
-
-        source_types_2_models = {
-            SourceType.CSV: MODEL_CONFIG_NAME,
-            SourceType.EXCEL: MODEL_CONFIG_NAME,
-            SourceType.IMAGE: VL_MODEL_NAME,
-            SourceType.RELATIONAL_DB: MODEL_CONFIG_NAME,
-            "IRREGULAR": MODEL_CONFIG_NAME,
-        }
-
-        models_2_model_and_formatter = {
-            MODEL_CONFIG_NAME: [
-                DashScopeChatModel(
-                    api_key=api_key,
-                    model_name="qwen3-max-preview",
-                    stream=True,
-                ),
-                DashScopeChatFormatter(),
-            ],
-            VL_MODEL_NAME: [
-                DashScopeChatModel(
-                    api_key=api_key,
-                    model_name="qwen-vl-max-latest",
-                    stream=True,
-                ),
-                DashScopeChatFormatter(),
-            ],
-        }
-
-        prompt_file_name = source_types_2_prompts[source_type]
-        prompt = get_prompt_from_file(
-            os.path.join(
-                PROFILE_PROMPT_BASE_PATH,
-                prompt_file_name,
-            ),
-            False,
-        )
-
-        model_name = source_types_2_models[source_type]
-        model, formatter = models_2_model_and_formatter[model_name]
-        return prompt, model, formatter
 
     @staticmethod
     def tool_clean_json(raw_response: str):
@@ -157,8 +123,12 @@ class BaseDataProfiler(ABC):
         return json.loads(cleaned_response)
 
     @abstractmethod
-    def _generate_content(self, prompt: str, data: Any) -> str:
-        """Abstract method to generate content for LLM based on prompt
+    def _build_content_with_prompt_and_data(
+        self,
+        prompt: str,
+        data: Any,
+    ) -> str:
+        """Abstract method to build content for LLM based on prompt
         and data.
 
         This method should be implemented by subclasses to format
@@ -188,46 +158,11 @@ class BaseDataProfiler(ABC):
     async def _call_model(
         self,
         content: Any,
-        model: DashScopeChatModel = None,
-        formatter: DashScopeChatFormatter = None,
     ) -> Dict[str, Any]:
-        """Uses LLM to generate profile based on the content.
-        Makes multiple attempts to call the LLM service,
-        with retry logic in case of failures.
-        Handles both regular text and multimodal inputs.
-
-        Args:
-            content: Content to send to the LLM (text or multimodal)
-            model: ChatModel to use
-            formatter: ChatFormatter to use for LLM input
-
-        Returns:
-            Dictionary response parsed from LLM output
-
-        Raises:
-            Exception: If all retry attempts fail
-        """
-        system_prompt = (
-            "You are a helpful AI assistant for database management."
+        response = await self.model_interface.unified_model_call_interface(
+            model_name=self.model_name,
+            user_content=content,
         )
-        msgs = [
-            Msg("system", system_prompt, "system"),
-            Msg("user", content, "user"),
-        ]
-        if model is None:
-            raw_response = await model_call_with_retry(
-                model=self.model,
-                formatter=self.formatter,
-                msgs=msgs,
-            )
-        else:
-            raw_response = await model_call_with_retry(
-                model=model,
-                formatter=formatter,
-                msgs=msgs,
-            )
-        response = raw_response.content[0]["text"]
-        # Clean and parse the JSON response from the LLM
         response = BaseDataProfiler.tool_clean_json(response)
         return response
 
@@ -325,7 +260,11 @@ class StructuredDataProfiler(BaseDataProfiler):
         }
         return table_schema
 
-    def _generate_content(self, prompt: str, data: Any) -> str:
+    def _build_content_with_prompt_and_data(
+        self,
+        prompt: str,
+        data: Any,
+    ) -> str:
         """Format the prompt with data for structured data sources.
 
         Args:
@@ -383,10 +322,6 @@ class StructuredDataProfiler(BaseDataProfiler):
 
 
 class ExcelProfiler(StructuredDataProfiler):
-    def __init__(self, api_key: str, path: str, source_type: SourceType):
-        super().__init__(api_key, path, source_type)
-        self.file_name = os.path.basename(self.path)
-
     async def _extract_irregular_table(
         self,
         path: str,
@@ -405,13 +340,9 @@ class ExcelProfiler(StructuredDataProfiler):
         Returns:
             Schema dictionary for the irregular table structure
         """
-        prompt, model, formatter = self._load_prompt_and_model("IRREGULAR")
+        prompt = self._load_prompt("IRREGULAR")
         content = prompt.format(raw_snippet_data=raw_data_snippet)
-        res = await self._call_model(
-            content=content,
-            model=model,
-            formatter=formatter,
-        )
+        res = await self._call_model(content=content)
 
         if "is_extractable_table" in res and res["is_extractable_table"]:
             logger.debug(res["reasoning"])
@@ -634,10 +565,6 @@ class RelationalDatabaseProfiler(StructuredDataProfiler):
 
 
 class CsvProfiler(ExcelProfiler):
-    def __init__(self, api_key: str, path: str, source_type: SourceType):
-        super().__init__(api_key, path, source_type)
-        self.file_name = os.path.basename(path)
-
     async def _read_data(self):
         """Handles schema extraction for CSV as single-table sources.
 
@@ -664,10 +591,6 @@ class CsvProfiler(ExcelProfiler):
 class ImageProfiler(BaseDataProfiler):
     """Profiler for image data sources that uses multimodal LLMs."""
 
-    def __init__(self, api_key: str, path: str, source_type: SourceType):
-        super().__init__(api_key, path, source_type)
-        self.file_name = os.path.basename(self.path)
-
     async def _read_data(self):
         """
         For images, this simply returns the path since the LLM API
@@ -678,8 +601,8 @@ class ImageProfiler(BaseDataProfiler):
         """
         return self.path
 
-    def _generate_content(self, prompt, data):
-        """Generate multimodal content for image analysis.
+    def _build_content_with_prompt_and_data(self, prompt, data):
+        """build multimodal content for image analysis.
 
         Creates content in the format required by multimodal LLM APIs
         with both image and text components.
@@ -731,7 +654,7 @@ class DataProfilerFactory:
 
     @staticmethod
     def get_profiler(
-        api_key: str,
+        model_interface: UnifiedModelCallInterface,
         path: str,
         source_type: SourceType,
     ) -> BaseDataProfiler:
@@ -750,12 +673,28 @@ class DataProfilerFactory:
             ValueError: If the source_type is unsupported
         """
         if source_type == SourceType.IMAGE:
-            return ImageProfiler(api_key, path, source_type)
+            return ImageProfiler(
+                path=path,
+                source_type=source_type,
+                model_interface=model_interface,
+            )
         elif source_type == SourceType.CSV:
-            return CsvProfiler(api_key, path, source_type)
+            return CsvProfiler(
+                path=path,
+                source_type=source_type,
+                model_interface=model_interface,
+            )
         elif source_type == SourceType.EXCEL:
-            return ExcelProfiler(api_key, path, source_type)
+            return ExcelProfiler(
+                path=path,
+                source_type=source_type,
+                model_interface=model_interface,
+            )
         elif source_type == SourceType.RELATIONAL_DB:
-            return RelationalDatabaseProfiler(api_key, path, source_type)
+            return RelationalDatabaseProfiler(
+                path=path,
+                source_type=source_type,
+                model_interface=model_interface,
+            )
         else:
             raise ValueError(f"Unsupported source type: {source_type}")
