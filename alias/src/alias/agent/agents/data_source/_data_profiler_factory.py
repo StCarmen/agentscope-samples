@@ -9,12 +9,14 @@ from typing import Any, Dict
 from loguru import logger
 import pandas as pd
 from sqlalchemy import inspect, text, create_engine
+from agentscope.message import Msg
+
 from alias.agent.agents.data_source._typing import SourceType
 from alias.agent.agents.ds_agent_utils import (
     get_prompt_from_file,
 )
-from alias.agent.utils.unified_model_call_interface import (
-    UnifiedModelCallInterface,
+from alias.agent.utils.llm_call_manager import (
+    LLMCallManager,
 )
 
 
@@ -32,7 +34,7 @@ class BaseDataProfiler(ABC):
         self,
         path: str,
         source_type: SourceType,
-        model_interface: UnifiedModelCallInterface,
+        llm_call_manager: LLMCallManager,
     ):
         """Initialize the data profiler with API key, data path and type.
 
@@ -44,7 +46,7 @@ class BaseDataProfiler(ABC):
         self.path = path
         self.file_name = os.path.basename(path)
         self.source_type = source_type
-        self.model_interface = model_interface
+        self.llm_call_manager = llm_call_manager
 
         self.source_types_2_prompts = {
             SourceType.CSV: "_profile_csv_prompt.md",
@@ -57,8 +59,8 @@ class BaseDataProfiler(ABC):
             raise ValueError(f"Unsupported source type: {source_type}")
         self.prompt = self._load_prompt(source_type)
 
-        base_model_name = self.model_interface.get_base_model_name()
-        vl_model_name = self.model_interface.get_vl_model_name()
+        base_model_name = self.llm_call_manager.get_base_model_name()
+        vl_model_name = self.llm_call_manager.get_vl_model_name()
 
         self.source_types_2_models = {
             SourceType.CSV: base_model_name,
@@ -159,9 +161,14 @@ class BaseDataProfiler(ABC):
         self,
         content: Any,
     ) -> Dict[str, Any]:
-        response = await self.model_interface.unified_model_call_interface(
+        sys_prompt = "You are a helpful AI assistant for database management."
+        msgs = [
+            Msg("system", sys_prompt, "system"),
+            Msg("user", content, "user"),
+        ]
+        response = await self.llm_call_manager(
             model_name=self.model_name,
-            user_content=content,
+            messages=msgs,
         )
         response = BaseDataProfiler.tool_clean_json(response)
         return response
@@ -654,7 +661,7 @@ class DataProfilerFactory:
 
     @staticmethod
     def get_profiler(
-        model_interface: UnifiedModelCallInterface,
+        llm_call_manager: LLMCallManager,
         path: str,
         source_type: SourceType,
     ) -> BaseDataProfiler:
@@ -676,25 +683,25 @@ class DataProfilerFactory:
             return ImageProfiler(
                 path=path,
                 source_type=source_type,
-                model_interface=model_interface,
+                llm_call_manager=llm_call_manager,
             )
         elif source_type == SourceType.CSV:
             return CsvProfiler(
                 path=path,
                 source_type=source_type,
-                model_interface=model_interface,
+                llm_call_manager=llm_call_manager,
             )
         elif source_type == SourceType.EXCEL:
             return ExcelProfiler(
                 path=path,
                 source_type=source_type,
-                model_interface=model_interface,
+                llm_call_manager=llm_call_manager,
             )
         elif source_type == SourceType.RELATIONAL_DB:
             return RelationalDatabaseProfiler(
                 path=path,
                 source_type=source_type,
-                model_interface=model_interface,
+                llm_call_manager=llm_call_manager,
             )
         else:
             raise ValueError(f"Unsupported source type: {source_type}")

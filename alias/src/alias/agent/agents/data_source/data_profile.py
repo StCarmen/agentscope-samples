@@ -15,8 +15,8 @@ from alias.agent.tools.sandbox_util import (
     get_workspace_file,
 )
 from alias.runtime.alias_sandbox.alias_sandbox import AliasSandbox
-from alias.agent.utils.unified_model_call_interface import (
-    UnifiedModelCallInterface,
+from alias.agent.utils.llm_call_manager import (
+    LLMCallManager,
 )
 
 
@@ -74,7 +74,7 @@ async def data_profile(
     sandbox: AliasSandbox,
     sandbox_path: str,
     source_type: SourceType,
-    model_interface: UnifiedModelCallInterface,
+    llm_call_manager: LLMCallManager,
 ) -> Dict[str, Any]:
     """
     Generates a detailed profile and summary for data source using LLMs.
@@ -104,7 +104,7 @@ async def data_profile(
         raise ValueError(f"Unsupported source type {source_type}")
 
     profiler = DataProfilerFactory.get_profiler(
-        model_interface=model_interface,
+        llm_call_manager=llm_call_manager,
         path=local_path,
         source_type=source_type,
     )

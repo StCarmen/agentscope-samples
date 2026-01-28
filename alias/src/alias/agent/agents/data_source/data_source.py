@@ -24,8 +24,8 @@ from alias.agent.tools.alias_toolkit import AliasToolkit
 from alias.agent.tools.sandbox_util import (
     copy_local_file_to_workspace,
 )
-from alias.agent.utils.unified_model_call_interface import (
-    UnifiedModelCallInterface,
+from alias.agent.utils.llm_call_manager import (
+    LLMCallManager,
 )
 
 
@@ -186,16 +186,16 @@ class DataSource:
     async def prepare_profile(
         self,
         sandbox: Sandbox,
-        model_interface: UnifiedModelCallInterface,
+        llm_call_manager: LLMCallManager,
     ) -> Optional[Dict[str, Any]]:
         """Run type-specific profiling."""
-        if model_interface and not self.profile:
+        if llm_call_manager and not self.profile:
             try:
                 self.profile = await data_profile(
                     sandbox=sandbox,
                     sandbox_path=self.source_access,
                     source_type=self.source_type,
-                    model_interface=model_interface,
+                    llm_call_manager=llm_call_manager,
                 )
                 logger.info(
                     "Profiling successfully: "
@@ -252,7 +252,7 @@ class DataSourceManager:
     def __init__(
         self,
         sandbox: Sandbox,
-        model_interface: UnifiedModelCallInterface,
+        llm_call_manager: LLMCallManager,
     ):
         """Initialize an empty data source manager."""
         self._data_sources: Dict[str, DataSource] = {}
@@ -265,7 +265,7 @@ class DataSourceManager:
 
         self.toolkit = AliasToolkit(sandbox=sandbox)
 
-        self.model_interface = model_interface
+        self.llm_call_manager = llm_call_manager
 
     def add_data_source(
         self,
@@ -338,7 +338,7 @@ class DataSourceManager:
             await data_source.prepare(self.toolkit)
             await data_source.prepare_profile(
                 self.toolkit.sandbox,
-                self.model_interface,
+                self.llm_call_manager,
             )
 
     def _generate_name(self, endpoint: str) -> str:
