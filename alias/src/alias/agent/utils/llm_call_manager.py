@@ -27,7 +27,7 @@ async def model_call_with_retry(
     msg_name: str = "model_call",
     **kwargs: Any,
 ) -> Msg:
-    format_messages = formatter.format(msgs=messages)
+    format_messages = await formatter.format(msgs=messages)
 
     res = await model(
         messages=format_messages,
