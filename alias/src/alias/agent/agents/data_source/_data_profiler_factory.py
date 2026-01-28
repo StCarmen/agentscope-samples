@@ -36,12 +36,12 @@ class BaseDataProfiler(ABC):
         source_type: SourceType,
         llm_call_manager: LLMCallManager,
     ):
-        """Initialize the data profiler with API key, data path and type.
+        """Initialize the data profiler with data path, type and LLM manager.
 
         Args:
-            api_key: Authentication key for LLM service
             path: Path to the data source file or connection string
             source_type: Enum indicating the type of data source
+            llm_call_manager: Manager for handling LLM calls
         """
         self.path = path
         self.file_name = os.path.basename(path)
@@ -71,6 +71,14 @@ class BaseDataProfiler(ABC):
         self.model_name = self.source_types_2_models[source_type]
 
     def _load_prompt(self, source_type: Any = None):
+        """Load the appropriate prompt template based on the source type.
+
+        Args:
+            source_type: Type of data source (CSV, EXCEL, IMAGE, etc.)
+
+        Returns:
+            Loaded prompt template as string
+        """
         prompt_file_name = self.source_types_2_prompts[source_type]
         prompt = get_prompt_from_file(
             os.path.join(
@@ -134,8 +142,7 @@ class BaseDataProfiler(ABC):
         and data.
 
         This method should be implemented by subclasses to format
-        content
-        appropriately for different data types.
+        content appropriately for different data types.
 
         Args:
             prompt: Prompt template to use
@@ -161,6 +168,14 @@ class BaseDataProfiler(ABC):
         self,
         content: Any,
     ) -> Dict[str, Any]:
+        """Generate profile by calling LLM with prepared content.
+
+        Args:
+            content: Content to send to the LLM (text or multimodal)
+
+        Returns:
+            Dictionary response parsed from LLM output
+        """
         sys_prompt = "You are a helpful AI assistant for database management."
         msgs = [
             Msg("system", sys_prompt, "system"),
@@ -669,9 +684,9 @@ class DataProfilerFactory:
         Generate the correct profile result for the source.
 
         Args:
-            api_key: Authentication key for LLM service
             path: Path to the data source or connection string
             source_type: Enum indicating the type of data source
+            llm_call_manager: Manager for handling LLM calls
 
         Returns:
             Instance of the appropriate profiler subclass

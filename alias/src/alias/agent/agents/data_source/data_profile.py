@@ -85,6 +85,7 @@ async def data_profile(
                     - For files: A file path or URL.
                     - For databases: A connection string (DSN).
         source_type (SourceType): The type of the data source.
+        llm_call_manager: Manager for handling LLM calls
 
     Returns:
         Dict: An object containing the generated text profile of the data.

@@ -27,6 +27,23 @@ async def model_call_with_retry(
     msg_name: str = "model_call",
     **kwargs: Any,
 ) -> Msg:
+    """
+    Make a model call with retry mechanism.
+    This function formats the messages and calls the model with retry logic
+    to handle potential failures during the API call.
+
+    Args:
+        model: The DashScope chat model to use for inference
+        formatter: Formatter to prepare messages for the model
+        msg_name: Name for the returned message object
+        see DashScopeChatModel's docstring for more details
+
+    Returns:
+        Message object containing the model response
+
+    Raises:
+        Exception: If all retry attempts fail
+    """
     format_messages = await formatter.format(msgs=messages)
 
     res = await model(
@@ -49,20 +66,32 @@ async def model_call_with_retry(
 
 
 class LLMCallManager:
+    """Manager class for handling LLM calls with different models."""
+
     def __init__(
         self,
         base_model_name: str,
         vl_model_name: str,
         model_formatter_mapping: Dict[str, Any],
     ):
+        """
+        Initialize the LLM call manager.
+
+        Args:
+            base_model_name: Name of the base language model
+            vl_model_name: Name of the vision-language model
+            model_formatter_mapping: Mapping of names to model/formatter pairs
+        """
         self.base_model_name = base_model_name
         self.vl_model_name = vl_model_name
         self.model_formatter_mapping = model_formatter_mapping
 
     def get_base_model_name(self) -> str:
+        """Get the name of the base language model."""
         return self.base_model_name
 
     def get_vl_model_name(self) -> str:
+        """Get the name of the vision-language model."""
         return self.vl_model_name
 
     async def __call__(
@@ -74,6 +103,17 @@ class LLMCallManager:
         structured_model: Type[BaseModel] | None = None,
         **kwargs: Any,
     ) -> str:
+        """
+        Make an asynchronous call to the specified LLM.
+
+        Args:
+            model_name: Name of the model to use for the call
+            messages: List of message dictionaries to send to the model
+            see DashScopeChatModel's docstring for more details
+
+        Returns:
+            String response from the LLM
+        """
         model, formatter = self.model_formatter_mapping[model_name]
         raw_response = await model_call_with_retry(
             model=model,
