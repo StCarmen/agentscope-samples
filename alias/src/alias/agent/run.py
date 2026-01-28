@@ -248,7 +248,18 @@ async def arun_deepresearch_agent(
         "run_shell_command",
     ]
     share_tools(global_toolkit, worker_toolkit, test_tool_list)
-    await prepare_data_sources(session_service, sandbox, worker_toolkit)
+
+    llm_call_manager = LLMCallManager(
+        base_model_name=MODEL_CONFIG_NAME,
+        vl_model_name=VL_MODEL_NAME,
+        model_formatter_mapping=MODEL_FORMATTER_MAPPING,
+    )
+    await prepare_data_sources(
+        session_service,
+        sandbox,
+        worker_toolkit,
+        llm_call_manager,
+    )
 
     worker_agent = DeepResearchAgent(
         name="Deep_Research_Agent",
@@ -315,7 +326,18 @@ async def arun_finance_agent(
         description="Finance Analysis tools",
         active=True,
     )
-    await prepare_data_sources(session_service, sandbox, worker_toolkit)
+
+    llm_call_manager = LLMCallManager(
+        base_model_name=MODEL_CONFIG_NAME,
+        vl_model_name=VL_MODEL_NAME,
+        model_formatter_mapping=MODEL_FORMATTER_MAPPING,
+    )
+    await prepare_data_sources(
+        session_service,
+        sandbox,
+        worker_toolkit,
+        llm_call_manager,
+    )
 
     worker_agent = DeepResearchAgent(
         name="Deep_Research_Agent",
@@ -425,7 +447,17 @@ async def arun_browseruse_agent(
         add_all=True,
         is_browser_toolkit=True,
     )
-    await prepare_data_sources(session_service, sandbox, browser_toolkit)
+    llm_call_manager = LLMCallManager(
+        base_model_name=MODEL_CONFIG_NAME,
+        vl_model_name=VL_MODEL_NAME,
+        model_formatter_mapping=MODEL_FORMATTER_MAPPING,
+    )
+    await prepare_data_sources(
+        session_service,
+        sandbox,
+        browser_toolkit,
+        llm_call_manager,
+    )
 
     logger.info("Init browser toolkit")
     try:

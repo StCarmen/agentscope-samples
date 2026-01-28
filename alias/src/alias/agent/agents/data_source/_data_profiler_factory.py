@@ -97,7 +97,7 @@ class BaseDataProfiler(ABC):
                 self.data,
             )
             # content = self.prompt.format(data=self.data)
-            res = await self._call_model(content)
+            res = await self._generate_profile_by_llm(content)
             self.profile = self._wrap_data_response(res)
         except Exception as e:
             logger.warning(f"Error generating profile: {e}")
@@ -157,7 +157,7 @@ class BaseDataProfiler(ABC):
             Processed data in appropriate format for the data type
         """
 
-    async def _call_model(
+    async def _generate_profile_by_llm(
         self,
         content: Any,
     ) -> Dict[str, Any]:
@@ -349,7 +349,7 @@ class ExcelProfiler(StructuredDataProfiler):
         """
         prompt = self._load_prompt("IRREGULAR")
         content = prompt.format(raw_snippet_data=raw_data_snippet)
-        res = await self._call_model(content=content)
+        res = await self._generate_profile_by_llm(content=content)
 
         if "is_extractable_table" in res and res["is_extractable_table"]:
             logger.debug(res["reasoning"])
